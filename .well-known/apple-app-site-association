@@ -1,0 +1,21 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": [
+          "8GYAXFCC2W.app.pythonide"
+        ],
+        "components": [
+          {
+            "/": "/s/*",
+            "comment": "Open a community script or MiniApp work."
+          },
+          {
+            "/": "/import",
+            "comment": "Open a remote import preview."
+          }
+        ]
+      }
+    ]
+  }
+}
