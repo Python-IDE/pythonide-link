@@ -1,0 +1,16 @@
+{
+  "client_id": "https://link.pythonide.xin/mcp-oauth/client.json",
+  "client_name": "PythonIDE",
+  "client_uri": "https://pythonide.xin/",
+  "redirect_uris": [
+    "https://link.pythonide.xin/mcp-oauth/callback"
+  ],
+  "grant_types": [
+    "authorization_code",
+    "refresh_token"
+  ],
+  "response_types": [
+    "code"
+  ],
+  "token_endpoint_auth_method": "none"
+}

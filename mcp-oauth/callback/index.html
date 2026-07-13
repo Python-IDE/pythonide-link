@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+  <title>返回 PythonIDE</title>
+  <style>
+    :root { color-scheme: light dark; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+    body { min-height: 100vh; margin: 0; display: grid; place-items: center; background: Canvas; color: CanvasText; }
+    main { width: min(30rem, calc(100% - 3rem)); text-align: center; }
+    h1 { font-size: 1.35rem; margin: 0 0 .6rem; }
+    p { color: GrayText; line-height: 1.55; }
+    a { display: inline-block; margin-top: 1rem; padding: .75rem 1rem; border-radius: 999px; background: #0a84ff; color: white; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>正在返回 PythonIDE…</h1>
+    <p id="status">请稍候，不要关闭此页面。</p>
+    <a id="continue" hidden>返回 PythonIDE</a>
+  </main>
+  <script>
+    (() => {
+      const status = document.getElementById('status');
+      const button = document.getElementById('continue');
+      if (!window.location.search) {
+        status.textContent = '授权响应无效，请返回 PythonIDE 后重试。';
+        return;
+      }
+      const destination = `pythonide://mcp-oauth/callback${window.location.search}`;
+      button.href = destination;
+      button.hidden = false;
+      window.location.replace(destination);
+    })();
+  </script>
+</body>
+</html>

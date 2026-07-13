@@ -17,5 +17,10 @@
         ]
       }
     ]
+  },
+  "webcredentials": {
+    "apps": [
+      "8GYAXFCC2W.app.pythonide"
+    ]
   }
 }
