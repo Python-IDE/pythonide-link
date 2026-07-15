@@ -1,6 +1,6 @@
 # PythonIDE Link Site
 
-This directory is a zero-cost GitHub Pages site for:
+This directory is the static GitHub Pages origin for:
 
 - `https://link.pythonide.xin/s/{scriptID}` community work shares
 - `https://link.pythonide.xin/l/{code}` reserved short links
@@ -16,6 +16,14 @@ The canonical repository is
 Pages deploys from the default branch root with the custom domain
 `link.pythonide.xin` and enforced HTTPS.
 
+The companion `../link-edge/` Cloudflare Worker intercepts only `/s/*` and
+`/og/*`. It server-renders per-script Open Graph metadata for crawlers and
+creates a 1200×630 PNG card from the existing public community API. All other
+routes, including AASA and MCP OAuth, continue to come directly from GitHub
+Pages. This split is required because GitHub Pages cannot generate a different
+HTML `<head>` for each script and WeChat does not reliably execute page
+JavaScript when building a link preview.
+
 To publish changes, copy the contents of this `link-site/` directory to that
 repository root and verify the Pages deployment. The DNS record is:
 
@@ -29,6 +37,17 @@ TTL: 10 minutes
 Do not change the root `@` or `www` records used by the main website. Do not
 recreate a repository named `pythonide-link` under the previous owner because
 that would break GitHub's repository-transfer redirects.
+
+After publishing the static site, deploy `../link-edge/worker.js` with the
+routes declared in `../link-edge/wrangler.jsonc`. The Cloudflare zone must keep
+the `link` record proxied for Worker routes to run. The Worker does not replace
+or proxy the AASA and OAuth paths.
+
+Before either deployment, run:
+
+```bash
+node --test link-site/tests/share-page.test.js link-edge/tests/worker.test.js
+```
 
 ## iOS Requirement
 
