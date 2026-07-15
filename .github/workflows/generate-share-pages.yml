@@ -1,0 +1,41 @@
+name: Generate community share previews
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "s/**"
+      - "og/**"
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: community-share-previews
+  cancel-in-progress: true
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Generate pages and cards
+        run: node scripts/generate-share-pages.mjs
+      - name: Publish generated assets
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --all s og
+          if git diff --cached --quiet; then
+            echo "Generated previews are already current."
+            exit 0
+          fi
+          git commit -m "Generate community share previews [skip ci]"
+          git push

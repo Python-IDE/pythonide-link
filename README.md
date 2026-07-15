@@ -16,13 +16,12 @@ The canonical repository is
 Pages deploys from the default branch root with the custom domain
 `link.pythonide.xin` and enforced HTTPS.
 
-The companion `../link-edge/` Cloudflare Worker intercepts only `/s/*` and
-`/og/*`. It server-renders per-script Open Graph metadata for crawlers and
-creates a 1200×630 PNG card from the existing public community API. All other
-routes, including AASA and MCP OAuth, continue to come directly from GitHub
-Pages. This split is required because GitHub Pages cannot generate a different
-HTML `<head>` for each script and WeChat does not reliably execute page
-JavaScript when building a link preview.
+The companion `../link-edge/` renderer server-renders per-script Open Graph
+metadata and creates a 1200×630 PNG card from the existing public community
+API. The GitHub Actions workflow in `.github/workflows/` runs this renderer on
+every source publish and every ten minutes, committing generated `/s/*/` pages
+and `/og/*` cards to GitHub Pages. This is required because WeChat does not
+reliably execute page JavaScript when building a link preview.
 
 To publish changes, copy the contents of this `link-site/` directory to that
 repository root and verify the Pages deployment. The DNS record is:
@@ -38,10 +37,9 @@ Do not change the root `@` or `www` records used by the main website. Do not
 recreate a repository named `pythonide-link` under the previous owner because
 that would break GitHub's repository-transfer redirects.
 
-After publishing the static site, deploy `../link-edge/worker.js` with the
-routes declared in `../link-edge/wrangler.jsonc`. The Cloudflare zone must keep
-the `link` record proxied for Worker routes to run. The Worker does not replace
-or proxy the AASA and OAuth paths.
+The publish script copies `../link-edge/` into the link repository as `edge/`
+so the workflow and renderer always use the same tested implementation. No DNS
+migration or community API change is required.
 
 Before either deployment, run:
 

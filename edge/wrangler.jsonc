@@ -1,0 +1,16 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "pythonide-link-edge",
+  "main": "worker.js",
+  "compatibility_date": "2026-07-01",
+  "routes": [
+    {
+      "pattern": "link.pythonide.xin/s/*",
+      "zone_name": "pythonide.xin"
+    },
+    {
+      "pattern": "link.pythonide.xin/og/*",
+      "zone_name": "pythonide.xin"
+    }
+  ]
+}
