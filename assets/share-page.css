@@ -630,7 +630,7 @@ h1 {
   padding: 0 16px;
   overflow: hidden;
   border: 1.25px solid var(--line-strong);
-  border-radius: 10px;
+  border-radius: 999px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -669,11 +669,16 @@ h1 {
 }
 
 .button.primary {
-  justify-content: space-between;
+  justify-content: center;
   border-color: var(--black);
   background: var(--black);
   color: var(--white);
   box-shadow: 0 14px 30px rgba(0, 0, 0, 0.12);
+}
+
+.button.primary > [aria-hidden="true"] {
+  position: absolute;
+  right: 18px;
 }
 
 .button.secondary {
@@ -890,6 +895,14 @@ h1 {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
+}
+
+.modal-actions .button {
+  width: 100%;
+  min-width: 0;
+  padding-right: 14px;
+  padding-left: 14px;
+  text-align: center;
 }
 
 .toast {

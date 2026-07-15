@@ -111,6 +111,10 @@ test('mobile share layout keeps one compact content flow with the primary action
   assert.match(css, /\.site-footer\s*\{\s*display:\s*none;/);
   assert.match(css, /\.language-toggle::before/);
   assert.match(css, /background-size:\s*64px 64px/);
+  assert.match(css, /\.button\s*\{[\s\S]*?border-radius:\s*999px/);
+  assert.match(css, /\.button\.primary\s*\{[\s\S]*?justify-content:\s*center/);
+  assert.doesNotMatch(css, /\.button\.primary\s*\{[\s\S]*?justify-content:\s*space-between/);
+  assert.match(css, /\.modal-actions \.button\s*\{[\s\S]*?text-align:\s*center/);
 });
 
 test('404 fallback and controller cooperate to restore a clean path', () => {
