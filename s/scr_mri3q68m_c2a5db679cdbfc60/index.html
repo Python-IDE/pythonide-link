@@ -28,24 +28,22 @@
     <script defer src="/assets/share-page.js"></script>
   </head>
   <body class="is-loading">
-    <a class="skip-link" href="#main-content">跳到作品内容</a>
+    <a class="skip-link" href="#main-content" id="skipLink">跳到作品内容</a>
 
     <header class="site-header">
-      <a class="brand" href="https://pythonide.xin/" aria-label="前往 Python IDE 官网">
-        <img src="/assets/brand-mark.svg" width="28" height="28" alt="">
-        <span>Python IDE</span>
-      </a>
+      <nav class="nav" aria-label="PythonIDE">
+        <a class="brand" href="https://pythonide.xin/" aria-label="PythonIDE">
+          <img src="/assets/brand-mark.svg" width="26" height="26" alt="">
+          <span>PythonIDE</span>
+        </a>
+        <div class="language-toggle" aria-label="Language">
+          <button type="button" data-lang="zh" aria-pressed="true">中</button>
+          <button type="button" data-lang="en" aria-pressed="false">EN</button>
+        </div>
+      </nav>
     </header>
 
     <main class="page-shell" id="main-content">
-      <aside class="embedded-guide hidden" id="embeddedGuide" aria-live="polite">
-        <span class="guide-mark" aria-hidden="true">↗</span>
-        <div>
-          <strong id="embeddedGuideTitle">请使用系统浏览器打开</strong>
-          <p id="embeddedGuideText">当前应用可能会拦截 App 跳转。请点右上角菜单，选择“在默认浏览器中打开”，再点击下方按钮。</p>
-        </div>
-      </aside>
-
       <section class="hero" aria-labelledby="title">
         <p class="eyebrow" id="eyebrow">Python IDE 社区作品</p>
         <h1 id="title" aria-live="polite">
@@ -65,14 +63,12 @@
       </section>
 
       <section class="work-card" id="workCard" aria-label="作品预览" aria-busy="true">
-        <header class="work-header">
-          <div class="file-identity">
-            <span class="file-badge" id="fileBadge">PY</span>
-            <strong id="fileDetail">正在准备内容</strong>
-            <span class="visually-hidden" id="fileName">作品预览</span>
-          </div>
-          <div class="tag-list" id="tagList" aria-label="作品标签"></div>
-        </header>
+        <div class="visually-hidden" aria-hidden="true">
+          <span id="fileBadge">PY</span>
+          <span id="fileDetail">正在准备内容</span>
+          <span id="fileName">作品预览</span>
+          <div id="tagList"></div>
+        </div>
 
         <div class="preview-viewport">
           <div class="preview-skeleton" id="previewSkeleton" aria-hidden="true">
@@ -130,14 +126,13 @@
         <p class="visually-hidden" id="actionDescription">运行代码、查看完整项目并保存到你的设备。</p>
         <div class="actions">
           <button class="button primary" id="openApp" type="button">
-            <span>在 Python IDE 中打开</span>
+            <span id="openAppLabel">在 PythonIDE 中打开</span>
             <span aria-hidden="true">↗</span>
           </button>
-          <div class="secondary-actions">
-            <a href="https://apps.apple.com/app/id6753987304" id="downloadApp">尚未安装？获取 App</a>
-            <span aria-hidden="true">·</span>
-            <button class="text-button" id="copyLink" type="button">复制链接</button>
-          </div>
+          <a class="button secondary" href="https://apps.apple.com/app/id6753987304" id="downloadApp">
+            <span id="downloadAppLabel">下载 PythonIDE</span>
+          </a>
+          <button class="text-button" id="copyLink" type="button">复制分享链接</button>
         </div>
         <p class="browser-note" id="browserNote">若没有自动打开，请确认已安装最新版 Python IDE。</p>
         <div class="launch-fallback hidden" id="launchFallback" role="status">
@@ -150,20 +145,20 @@
     <footer class="site-footer">
       <span>© Python IDE</span>
       <nav aria-label="页脚链接">
-        <a href="https://pythonide.xin/">官网</a>
-        <a href="https://pythonide.xin/privacy">隐私</a>
+        <a href="https://pythonide.xin/" id="footerWebsite">官网</a>
+        <a href="https://pythonide.xin/privacy" id="footerPrivacy">隐私</a>
       </nav>
     </footer>
 
     <div class="browser-modal hidden" id="browserModal" role="dialog" aria-modal="true" aria-labelledby="browserModalTitle">
       <button class="modal-backdrop" id="modalBackdrop" type="button" aria-label="关闭提示"></button>
       <section class="modal-sheet">
-        <p class="modal-kicker">在系统浏览器中继续</p>
+        <p class="modal-kicker" id="modalKicker">在系统浏览器中继续</p>
         <h2 id="browserModalTitle">从右上角菜单打开浏览器</h2>
         <ol>
-          <li><span>1</span>点击页面右上角的菜单按钮</li>
-          <li><span>2</span>选择“在默认浏览器中打开”</li>
-          <li><span>3</span>再次点击“在 Python IDE 中打开”</li>
+          <li><span>1</span><b id="modalStep1">点击页面右上角的菜单按钮</b></li>
+          <li><span>2</span><b id="modalStep2">选择“在默认浏览器中打开”</b></li>
+          <li><span>3</span><b id="modalStep3">再次点击“在 PythonIDE 中打开”</b></li>
         </ol>
         <div class="modal-actions">
           <button class="button primary" id="modalCopyLink" type="button">复制链接</button>
