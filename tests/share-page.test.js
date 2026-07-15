@@ -87,6 +87,20 @@ test('the page contains every DOM hook used by the controller', () => {
   assert.doesNotMatch(html, /class="logo">Py</);
 });
 
+test('mobile share layout keeps one compact content flow with the primary action visible', () => {
+  const siteRoot = path.resolve(__dirname, '..');
+  const html = fs.readFileSync(path.join(siteRoot, 'index.html'), 'utf8');
+  const css = fs.readFileSync(path.join(siteRoot, 'assets/share-page.css'), 'utf8');
+  assert.match(html, /class="preview-viewport"/);
+  assert.match(html, /class="author-row"[^>]*id="authorRow"/);
+  assert.match(html, /class="button primary" id="openApp"/);
+  assert.doesNotMatch(html, /class="header-link"/);
+  assert.match(css, /min-height:\s*100svh/);
+  assert.match(css, /-webkit-line-clamp:\s*2/);
+  assert.match(css, /\.site-footer\s*\{\s*display:\s*none;/);
+  assert.match(css, /body\.is-embedded \.preview-viewport/);
+});
+
 test('404 fallback and controller cooperate to restore a clean path', () => {
   const siteRoot = path.resolve(__dirname, '..');
   const fallback = fs.readFileSync(path.join(siteRoot, '404.html'), 'utf8');

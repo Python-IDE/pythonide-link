@@ -309,20 +309,24 @@
     return `${(bytes / 1024 / 1024).toFixed(bytes >= 10 * 1024 * 1024 ? 0 : 1)} MB`;
   }
 
-  function renderAuthor(script) {
+  function renderAuthor(script, presentation) {
     const author = String(script.author_name || '社区创作者').trim() || '社区创作者';
     const date = formatDate(script.updated_at || script.approved_at || script.created_at);
-    const badges = [];
-    if (String(script.author_premium_status || '').toLowerCase().includes('premium')) badges.push('Pro');
-    if (script.author_donation_level) badges.push('赞助成员');
-    badges.push(date ? `更新于 ${date}` : 'Python IDE 社区创作者');
+    const details = [`${presentation?.categoryLabel || '社区'}作品`];
+    if (date) details.push(`${date}更新`);
     setText(el.authorName, author);
-    setText(el.authorDetail, badges.join(' · '));
+    setText(el.authorDetail, details.join(' · '));
     setText(el.authorInitial, Array.from(author)[0] || 'P');
     el.authorRow.hidden = false;
+    el.authorAvatar.hidden = true;
+    el.authorInitial.hidden = false;
 
     const avatarID = String(script.author_avatar_id || '').trim();
-    if (avatarID) {
+    const explicitAvatar = safeImageURL(script.author_avatar_url || script.avatar_url || script.user_avatar_url);
+    const avatarURL = explicitAvatar || (avatarID
+      ? `https://api.dicebear.com/9.x/adventurer/png?seed=${encodeURIComponent(avatarID)}&size=160`
+      : '');
+    if (avatarURL) {
       el.authorAvatar.onload = () => {
         el.authorAvatar.hidden = false;
         el.authorInitial.hidden = true;
@@ -331,7 +335,7 @@
         el.authorAvatar.hidden = true;
         el.authorInitial.hidden = false;
       };
-      el.authorAvatar.src = `https://api.dicebear.com/9.x/adventurer/png?seed=${encodeURIComponent(avatarID)}&size=160`;
+      el.authorAvatar.src = avatarURL;
       el.authorAvatar.alt = `${author}的头像`;
     }
   }
@@ -379,7 +383,7 @@
     setText(el.fileName, title);
     setText(el.fileDetail, presentation.detail);
     renderTags(tags);
-    renderAuthor(script);
+    renderAuthor(script, presentation);
 
     if (coverURL) {
       hidePreviews();
@@ -586,9 +590,10 @@
 
   function configureEmbeddedGuide() {
     if (!embeddedBrowser.embedded) return;
+    document.body.classList.add('is-embedded');
     el.embeddedGuide.classList.remove('hidden');
     setText(el.embeddedGuideTitle, `${embeddedBrowser.name}内可能无法直接打开 App`);
-    setText(el.embeddedGuideText, '请点右上角菜单，选择“在默认浏览器中打开”，再点击“在 Python IDE 中打开”。');
+    setText(el.embeddedGuideText, '请点右上角菜单，选择“在默认浏览器中打开”。');
     setText(el.browserNote, `${embeddedBrowser.name}内无法跳转时，请先从右上角菜单使用系统浏览器打开。`);
   }
 
