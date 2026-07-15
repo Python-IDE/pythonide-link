@@ -106,6 +106,8 @@ test('mobile share layout keeps one compact content flow with the primary action
   assert.doesNotMatch(html, /class="header-link"/);
   assert.doesNotMatch(html, /class="embedded-guide/);
   assert.doesNotMatch(html, /class="work-header/);
+  assert.match(html, /share-page\.css\?v=20260716-pill-buttons/);
+  assert.match(html, /share-page\.js\?v=20260716-pill-buttons/);
   assert.match(css, /min-height:\s*100svh/);
   assert.match(css, /-webkit-line-clamp:\s*2/);
   assert.match(css, /\.site-footer\s*\{\s*display:\s*none;/);
