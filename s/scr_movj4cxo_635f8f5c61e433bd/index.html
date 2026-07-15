@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="apple-itunes-app" content="app-id=6753987304">
-    <meta name="theme-color" content="#f7f7f5">
+    <meta name="theme-color" content="#f7f7f8">
     <!-- edge:meta-start -->
     <meta name="description" content="这是一个在浏览器中模拟 MS-DOS 6.22 操作系统的交互式终端，用于体验经典 DOS 命令和文件系统操作。">
     <meta property="og:type" content="article">
@@ -32,17 +32,14 @@
 
     <header class="site-header">
       <a class="brand" href="https://pythonide.xin/" aria-label="前往 Python IDE 官网">
-        <img src="/assets/brand-mark.svg" width="34" height="34" alt="">
+        <img src="/assets/brand-mark.svg" width="28" height="28" alt="">
         <span>Python IDE</span>
-      </a>
-      <a class="header-link" href="https://apps.apple.com/app/id6753987304">
-        获取 App <span aria-hidden="true">↗</span>
       </a>
     </header>
 
     <main class="page-shell" id="main-content">
       <aside class="embedded-guide hidden" id="embeddedGuide" aria-live="polite">
-        <div class="guide-mark" aria-hidden="true">↗</div>
+        <span class="guide-mark" aria-hidden="true">↗</span>
         <div>
           <strong id="embeddedGuideTitle">请使用系统浏览器打开</strong>
           <p id="embeddedGuideText">当前应用可能会拦截 App 跳转。请点右上角菜单，选择“在默认浏览器中打开”，再点击下方按钮。</p>
@@ -50,15 +47,11 @@
       </aside>
 
       <section class="hero" aria-labelledby="title">
-        <p class="eyebrow" id="eyebrow">PYTHON IDE 社区</p>
+        <p class="eyebrow" id="eyebrow">Python IDE 社区作品</p>
         <h1 id="title" aria-live="polite">
           <span class="skeleton skeleton-title" aria-hidden="true"></span>
           <span class="loading-label">正在加载作品</span>
         </h1>
-        <p class="summary" id="summary">
-          <span class="skeleton skeleton-copy" aria-hidden="true"></span>
-        </p>
-
         <div class="author-row" id="authorRow" hidden>
           <div class="avatar" aria-hidden="true">
             <img id="authorAvatar" alt="" hidden>
@@ -75,97 +68,97 @@
         <header class="work-header">
           <div class="file-identity">
             <span class="file-badge" id="fileBadge">PY</span>
-            <div>
-              <strong id="fileName">作品预览</strong>
-              <span id="fileDetail">正在准备内容</span>
-            </div>
+            <strong id="fileDetail">正在准备内容</strong>
+            <span class="visually-hidden" id="fileName">作品预览</span>
           </div>
           <div class="tag-list" id="tagList" aria-label="作品标签"></div>
         </header>
 
-        <div class="preview-skeleton" id="previewSkeleton" aria-hidden="true">
-          <span></span><span></span><span></span><span></span><span></span>
-        </div>
-
-        <figure class="cover-preview hidden" id="coverPreview">
-          <img id="coverImage" alt="作品封面">
-        </figure>
-
-        <div class="code-preview hidden" id="codePreview">
-          <div class="code-toolbar">
-            <span id="codeLanguage">PYTHON</span>
-            <span id="codeStatus">只读预览</span>
+        <div class="preview-viewport">
+          <div class="preview-skeleton" id="previewSkeleton" aria-hidden="true">
+            <span></span><span></span><span></span><span></span>
           </div>
-          <pre aria-label="代码预览"><code id="codeContent"></code></pre>
-          <div class="preview-fade" aria-hidden="true"></div>
-        </div>
 
-        <div class="project-preview hidden" id="projectPreview">
-          <div class="project-orbit" aria-hidden="true"><span></span><span></span><span></span></div>
-          <p class="project-kicker" id="projectKicker">PYTHON IDE PROJECT</p>
-          <h2 id="projectTitle">完整项目</h2>
-          <p id="projectDescription">在 App 中下载并运行完整项目内容。</p>
-          <div class="project-facts" id="projectFacts"></div>
-        </div>
+          <figure class="cover-preview hidden" id="coverPreview">
+            <img id="coverImage" alt="作品封面">
+          </figure>
 
-        <div class="generic-preview hidden" id="genericPreview">
-          <span class="generic-symbol" id="genericSymbol" aria-hidden="true">{ }</span>
-          <div>
-            <h2 id="genericTitle">Python IDE 作品</h2>
-            <p id="genericDescription">在 App 中查看完整内容。</p>
+          <div class="code-preview hidden" id="codePreview">
+            <div class="code-toolbar">
+              <span id="codeLanguage">PYTHON</span>
+              <span id="codeStatus">只读预览</span>
+            </div>
+            <pre aria-label="代码预览"><code id="codeContent"></code></pre>
+            <div class="preview-fade" aria-hidden="true"></div>
           </div>
+
+          <div class="project-preview hidden" id="projectPreview">
+            <div class="project-orbit" aria-hidden="true"><span></span><span></span><span></span></div>
+            <p class="project-kicker" id="projectKicker">Python IDE Project</p>
+            <h2 id="projectTitle">完整项目</h2>
+            <p id="projectDescription">在 App 中下载并运行完整项目内容。</p>
+            <div class="project-facts" id="projectFacts"></div>
+          </div>
+
+          <div class="generic-preview hidden" id="genericPreview">
+            <span class="generic-symbol" id="genericSymbol" aria-hidden="true">{ }</span>
+            <div>
+              <h2 id="genericTitle">Python IDE 作品</h2>
+              <p id="genericDescription">在 App 中查看完整内容。</p>
+            </div>
+          </div>
+
+          <section class="status-card hidden" id="statusCard" role="status" aria-live="polite">
+            <span class="status-dot" aria-hidden="true"></span>
+            <div>
+              <strong id="statusTitle">暂时无法加载作品预览</strong>
+              <p id="statusMessage">你仍然可以尝试在 Python IDE 中打开。</p>
+            </div>
+            <button class="retry-button hidden" id="retryButton" type="button">重新加载</button>
+          </section>
         </div>
 
         <footer class="stats" id="stats" aria-label="作品数据"></footer>
       </section>
 
+      <p class="summary" id="summary">
+        <span class="skeleton skeleton-copy" aria-hidden="true"></span>
+      </p>
+
       <section class="action-panel" aria-labelledby="actionTitle">
-        <div class="action-copy">
-          <p class="action-kicker">继续体验</p>
-          <h2 id="actionTitle">在 Python IDE 中打开</h2>
-          <p id="actionDescription">运行代码、查看完整项目并保存到你的设备。</p>
-        </div>
+        <h2 class="visually-hidden" id="actionTitle">在 Python IDE 中打开</h2>
+        <p class="visually-hidden" id="actionDescription">运行代码、查看完整项目并保存到你的设备。</p>
         <div class="actions">
           <button class="button primary" id="openApp" type="button">
             <span>在 Python IDE 中打开</span>
             <span aria-hidden="true">↗</span>
           </button>
-          <a class="button secondary" href="https://apps.apple.com/app/id6753987304" id="downloadApp">
-            获取 Python IDE
-          </a>
-          <button class="text-button" id="copyLink" type="button">复制分享链接</button>
+          <div class="secondary-actions">
+            <a href="https://apps.apple.com/app/id6753987304" id="downloadApp">尚未安装？获取 App</a>
+            <span aria-hidden="true">·</span>
+            <button class="text-button" id="copyLink" type="button">复制链接</button>
+          </div>
         </div>
-        <p class="browser-note" id="browserNote">如果没有自动跳转，请确认已安装最新版 Python IDE。</p>
+        <p class="browser-note" id="browserNote">若没有自动打开，请确认已安装最新版 Python IDE。</p>
         <div class="launch-fallback hidden" id="launchFallback" role="status">
           <strong>没有打开 App？</strong>
-          <p>你可以再次尝试，或先从 App Store 获取 Python IDE。</p>
+          <p>请再次尝试，或先获取最新版 Python IDE。</p>
         </div>
-      </section>
-
-      <section class="status-card hidden" id="statusCard" role="status" aria-live="polite">
-        <span class="status-dot" aria-hidden="true"></span>
-        <div>
-          <strong id="statusTitle">暂时无法加载作品预览</strong>
-          <p id="statusMessage">你仍然可以尝试在 Python IDE 中打开。</p>
-        </div>
-        <button class="retry-button hidden" id="retryButton" type="button">重新加载</button>
       </section>
     </main>
 
     <footer class="site-footer">
-      <span>Python IDE</span>
+      <span>© Python IDE</span>
       <nav aria-label="页脚链接">
         <a href="https://pythonide.xin/">官网</a>
         <a href="https://pythonide.xin/privacy">隐私</a>
-        <a href="https://apps.apple.com/app/id6753987304">App Store</a>
       </nav>
     </footer>
 
     <div class="browser-modal hidden" id="browserModal" role="dialog" aria-modal="true" aria-labelledby="browserModalTitle">
       <button class="modal-backdrop" id="modalBackdrop" type="button" aria-label="关闭提示"></button>
       <section class="modal-sheet">
-        <div class="modal-arrow" aria-hidden="true">↗</div>
-        <p class="modal-kicker">需要在系统浏览器中继续</p>
+        <p class="modal-kicker">在系统浏览器中继续</p>
         <h2 id="browserModalTitle">从右上角菜单打开浏览器</h2>
         <ol>
           <li><span>1</span>点击页面右上角的菜单按钮</li>
