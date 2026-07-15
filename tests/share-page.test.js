@@ -42,6 +42,13 @@ test('detects embedded browsers that block custom schemes', () => {
   assert.equal(core.detectEmbeddedBrowser('Mobile Safari').embedded, false);
 });
 
+test('chooses Chinese or English from the URL, saved choice, or browser language', () => {
+  assert.equal(core.preferredLanguage('/s/demo?lang=en', 'zh-CN', 'zh'), 'en');
+  assert.equal(core.preferredLanguage('/s/demo', 'en-US', 'zh'), 'zh');
+  assert.equal(core.preferredLanguage('/s/demo', 'fr-FR', ''), 'en');
+  assert.equal(core.preferredLanguage('/s/demo', 'zh-Hans', ''), 'zh');
+});
+
 test('builds safe bounded code previews', () => {
   const lines = core.previewLines('print(1)\nprint(2)\nprint(3)', 2, 100);
   assert.deepEqual(lines, ['print(1)', 'print(2)']);
@@ -94,11 +101,16 @@ test('mobile share layout keeps one compact content flow with the primary action
   assert.match(html, /class="preview-viewport"/);
   assert.match(html, /class="author-row"[^>]*id="authorRow"/);
   assert.match(html, /class="button primary" id="openApp"/);
+  assert.match(html, /class="button secondary"[^>]*id="downloadApp"/);
+  assert.match(html, /class="language-toggle"/);
   assert.doesNotMatch(html, /class="header-link"/);
+  assert.doesNotMatch(html, /class="embedded-guide/);
+  assert.doesNotMatch(html, /class="work-header/);
   assert.match(css, /min-height:\s*100svh/);
   assert.match(css, /-webkit-line-clamp:\s*2/);
   assert.match(css, /\.site-footer\s*\{\s*display:\s*none;/);
-  assert.match(css, /body\.is-embedded \.preview-viewport/);
+  assert.match(css, /\.language-toggle::before/);
+  assert.match(css, /background-size:\s*64px 64px/);
 });
 
 test('404 fallback and controller cooperate to restore a clean path', () => {
