@@ -19,7 +19,7 @@ Pages deploys from the default branch root with the custom domain
 The companion `../link-edge/` renderer server-renders per-script Open Graph
 metadata and creates a 1200×630 PNG card from the existing public community
 API. The GitHub Actions workflow in `.github/workflows/` runs this renderer on
-every source publish and every ten minutes, committing generated `/s/*/` pages
+every source publish and every five minutes, committing generated `/s/*/` pages
 and `/og/*` cards to GitHub Pages. This is required because WeChat does not
 reliably execute page JavaScript when building a link preview.
 

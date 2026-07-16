@@ -5,15 +5,15 @@ const DEFAULT_IMAGE = `${SITE_ORIGIN}/assets/app-icon.png`;
 const DEFAULT_TITLE = 'Python IDE 社区作品';
 const DEFAULT_DESCRIPTION = '在 Python IDE 中查看、运行和导入社区作品。';
 
-const CATEGORY_LABELS = {
-  python: 'PYTHON', miniapp: 'MINIAPP', appui: 'APPUI', html: 'HTML',
-  scene: 'SCENE', pygame: 'PYGAME', widget: 'WIDGET', other: 'COMMUNITY',
-};
-
 const FONT = {
   ' ': ['00000','00000','00000','00000','00000','00000','00000'],
   '-': ['00000','00000','00000','11111','00000','00000','00000'],
   '.': ['00000','00000','00000','00000','00000','01100','01100'],
+  '/': ['00001','00010','00100','01000','10000','00000','00000'],
+  '<': ['00001','00010','00100','01000','00100','00010','00001'],
+  '>': ['10000','01000','00100','00010','00100','01000','10000'],
+  '{': ['00011','00100','00100','11000','00100','00100','00011'],
+  '}': ['11000','00100','00100','00011','00100','00100','11000'],
   '0': ['01110','10001','10011','10101','11001','10001','01110'],
   '1': ['00100','01100','00100','00100','00100','00100','01110'],
   '2': ['01110','10001','00001','00010','00100','01000','11111'],
@@ -78,18 +78,60 @@ function decodeSegment(value) {
   }
 }
 
+function isProjectScript(script) {
+  const tags = [...(script?.tags || []), ...(script?.ai_tags || [])]
+    .map((value) => String(value || '').trim().toLowerCase());
+  return String(script?.content_mode || '').trim().toLowerCase() === 'project_package'
+    || Boolean(script?.package_id)
+    || tags.includes('project')
+    || tags.includes('project_package')
+    || tags.includes('community_content_mode:project_package');
+}
+
+function workPresentation(script) {
+  const category = String(script?.category || '').trim().toLowerCase();
+  const fileType = String(script?.file_type || '').trim().replace(/^\./, '').toLowerCase();
+  const tags = [...(script?.tags || []), ...(script?.ai_tags || [])]
+    .map((value) => String(value || '').trim().toLowerCase());
+  const taggedRuntime = tags.find((value) => value.startsWith('community_runtime:'))
+    ?.split(':').slice(1).join(':') || '';
+  const runtime = String(script?.runtime || taggedRuntime).trim().toLowerCase();
+  const project = isProjectScript(script);
+  const format = project ? 'PROJECT' : 'SINGLE FILE';
+  const matches = (...values) => values.some((value) => (
+    value === category || value === fileType || value === runtime || tags.includes(value)
+  ));
+  if (matches('pygame', 'scene', 'game')) {
+    const runtimeLabel = matches('pygame') ? 'PYGAME ' : (matches('scene') ? 'SCENE ' : '');
+    return { kind: 'game', label: `GAME · ${runtimeLabel}${format}`, preview: project ? 'WORK PREVIEW' : 'CODE PREVIEW', project, language: runtimeLabel.trim() || 'GAME' };
+  }
+  if (matches('miniapp', 'minip')) return { kind: 'miniapp', label: `MINIAPP · ${format}`, preview: project ? 'WORK PREVIEW' : 'CODE PREVIEW', project, language: 'MINIAPP' };
+  if (matches('appui', 'ui')) return { kind: 'appui', label: `APPUI · ${format}`, preview: project ? 'WORK PREVIEW' : 'CODE PREVIEW', project, language: 'PYTHON' };
+  if (matches('widget', 'widgets')) return { kind: 'widget', label: `WIDGET · ${format}`, preview: project ? 'WORK PREVIEW' : 'CODE PREVIEW', project, language: 'PYTHON' };
+  if (matches('html', 'htm')) return { kind: 'html', label: `HTML · ${format}`, preview: project ? 'WORK PREVIEW' : 'CODE PREVIEW', project, language: 'HTML' };
+  if (matches('python', 'py', 'pyw')) return { kind: 'python', label: `PYTHON · ${format}`, preview: project ? 'WORK PREVIEW' : 'CODE PREVIEW', project, language: 'PYTHON' };
+  return { kind: 'other', label: `PYTHONIDE · ${format}`, preview: 'WORK PREVIEW', project, language: 'SOURCE CODE' };
+}
+
+function shareRevision(script, scriptId = '') {
+  const source = String(script?.content_hash || script?.updated_at || script?.approved_at || script?.version || scriptId || 'preview');
+  return stableHash(source).toString(36);
+}
+
 function socialPayload(script, scriptId, origin = SITE_ORIGIN) {
   const title = String(script?.title || DEFAULT_TITLE).trim().slice(0, 90) || DEFAULT_TITLE;
   const description = String(script?.ai_summary || script?.summary || DEFAULT_DESCRIPTION).trim().slice(0, 160) || DEFAULT_DESCRIPTION;
   const cover = safeHTTPSURL(script?.cover_image_url || script?.preview_image_url || script?.thumbnail_url);
+  const presentation = workPresentation(script);
   return {
     title,
     documentTitle: title === DEFAULT_TITLE ? title : `${title} · Python IDE`,
     description,
     url: `${origin}/s/${encodeURIComponent(scriptId)}`,
-    image: cover || `${origin}/og/script/${encodeURIComponent(scriptId)}.png`,
+    image: cover || `${origin}/og/script/${encodeURIComponent(scriptId)}.png?v=${shareRevision(script, scriptId)}`,
     isGeneratedImage: !cover,
     author: String(script?.author_name || '').trim().slice(0, 60),
+    programmingLanguage: presentation.language,
   };
 }
 
@@ -104,7 +146,7 @@ function buildMetaBlock(meta) {
     description: meta.description,
     url: meta.url,
     author: meta.author ? { '@type': 'Person', name: meta.author } : undefined,
-    programmingLanguage: 'Python',
+    programmingLanguage: meta.programmingLanguage || 'Source code',
     codeRepository: meta.url,
   }).replaceAll('<', '\\u003c');
   return `<!-- edge:meta-start -->
@@ -115,11 +157,14 @@ function buildMetaBlock(meta) {
     <meta property="og:description" content="${escapeHTML(meta.description)}">
     <meta property="og:url" content="${escapeHTML(meta.url)}">
     <meta property="og:image" content="${escapeHTML(meta.image)}">
+    <meta property="og:image:secure_url" content="${escapeHTML(meta.image)}">
+    <meta property="og:image:alt" content="${escapeHTML(`${meta.title} · PythonIDE 作品预览`)}">
     ${dimensions}
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="${escapeHTML(meta.title)}">
     <meta name="twitter:description" content="${escapeHTML(meta.description)}">
     <meta name="twitter:image" content="${escapeHTML(meta.image)}">
+    <meta name="twitter:image:alt" content="${escapeHTML(`${meta.title} · PythonIDE 作品预览`)}">
     <link rel="canonical" href="${escapeHTML(meta.url)}">
     <script type="application/ld+json">${jsonLD}</script>
     <!-- edge:meta-end -->`;
@@ -129,6 +174,17 @@ function injectMetadata(html, meta) {
   const blockPattern = /<!-- edge:meta-start -->[\s\S]*?<!-- edge:meta-end -->/;
   const withMeta = blockPattern.test(html) ? html.replace(blockPattern, buildMetaBlock(meta)) : html;
   return withMeta.replace(/<title>[\s\S]*?<\/title>/, `<title>${escapeHTML(meta.documentTitle)}</title>`);
+}
+
+function injectInitialScriptData(html, script) {
+  const serialized = JSON.stringify(script || {})
+    .replaceAll('<', '\\u003c')
+    .replaceAll('\u2028', '\\u2028')
+    .replaceAll('\u2029', '\\u2029');
+  return html.replace(
+    /(<script\b[^>]*\bid=["']initial-script-data["'][^>]*>)[\s\S]*?(<\/script>)/i,
+    (_match, openingTag, closingTag) => `${openingTag}${serialized}${closingTag}`,
+  );
 }
 
 async function fetchScript(scriptId, fetcher = fetch) {
@@ -222,33 +278,97 @@ function drawBrand(target) {
   drawText(target, 'PYTHON IDE', 145, 62, 4, '#0d0d0d', 12);
 }
 
-function drawCodeArtwork(target, script, scriptId) {
-  const seed = stableHash(`${scriptId}:${script?.content || script?.title || ''}`);
-  fillRoundedRect(target, 64, 190, 1072, 364, 24, '#171717');
-  fillRect(target, 64, 254, 1072, 1, '#30302f');
-  drawText(target, 'READ ONLY PREVIEW', 92, 215, 2, '#777774', 24);
+function drawTypeGlyph(target, presentation, x, y, size, color, background) {
+  if (presentation.kind === 'html') {
+    drawText(target, '</>', x, y + Math.round(size * 0.28), Math.max(2, Math.round(size / 16)), color, 3);
+    return;
+  }
+  if (presentation.kind === 'python' || presentation.kind === 'other') {
+    drawText(target, presentation.kind === 'python' ? 'PY' : '{ }', x, y + Math.round(size * 0.28), Math.max(2, Math.round(size / 16)), color, 3);
+    return;
+  }
+  if (presentation.kind === 'game') {
+    fillRoundedRect(target, x, y + (size * 0.23), size, size * 0.56, size * 0.18, color);
+    fillRect(target, x + (size * 0.2), y + (size * 0.43), size * 0.22, size * 0.07, background);
+    fillRect(target, x + (size * 0.275), y + (size * 0.355), size * 0.07, size * 0.24, background);
+    fillCircle(target, x + (size * 0.72), y + (size * 0.42), size * 0.055, background);
+    fillCircle(target, x + (size * 0.82), y + (size * 0.54), size * 0.055, background);
+    return;
+  }
+  if (presentation.kind === 'miniapp' || presentation.kind === 'appui') {
+    fillRoundedRect(target, x, y + (size * 0.08), size, size * 0.84, size * 0.13, color);
+    fillRoundedRect(target, x + (size * 0.07), y + (size * 0.16), size * 0.86, size * 0.68, size * 0.08, background);
+    fillRect(target, x + (size * 0.07), y + (size * 0.31), size * 0.86, size * 0.055, color);
+    if (presentation.kind === 'appui') {
+      fillRect(target, x + (size * 0.37), y + (size * 0.16), size * 0.055, size * 0.68, color);
+    }
+    return;
+  }
+  if (presentation.kind === 'widget') {
+    const cell = size * 0.42;
+    fillRoundedRect(target, x, y, cell, cell, size * 0.1, color);
+    fillRoundedRect(target, x + (size * 0.54), y, cell, size * 0.3, size * 0.1, color);
+    fillRoundedRect(target, x, y + (size * 0.54), cell, cell, size * 0.1, color);
+    fillRoundedRect(target, x + (size * 0.54), y + (size * 0.4), cell, size * 0.56, size * 0.1, color);
+  }
+}
 
-  const lines = String(script?.content || '').replace(/\r\n?/g, '\n').split('\n').filter((line) => line.trim()).slice(0, 10);
-  const fallback = ['python ide community', 'share clean useful code', 'open in the app', 'build something great'];
+function formatCardCount(value) {
+  const count = Math.max(0, Number(value) || 0);
+  if (count >= 1000000) return `${Math.floor(count / 100000) / 10}M`;
+  if (count >= 10000) return `${Math.floor(count / 1000)}K`;
+  return String(Math.round(count));
+}
+
+function drawUnifiedArtwork(target, script, scriptId) {
+  const presentation = workPresentation(script);
+  const cardX = 64;
+  const cardY = 176;
+  const cardWidth = 1072;
+  const cardHeight = 390;
+  const headerHeight = 66;
+  const statsHeight = 58;
+  const previewY = cardY + headerHeight;
+  const previewHeight = cardHeight - headerHeight - statsHeight;
+  fillRoundedRect(target, cardX, cardY, cardWidth, cardHeight, 24, '#ffffff');
+  fillRect(target, cardX, previewY, cardWidth, previewHeight, '#202123');
+  fillRect(target, cardX, previewY, cardWidth, 1, '#ddddda');
+  fillRect(target, cardX, previewY + previewHeight, cardWidth, 1, '#ddddda');
+
+  fillRoundedRect(target, cardX + 22, cardY + 13, 40, 40, 10, '#f1f1ef');
+  drawTypeGlyph(target, presentation, cardX + 30, cardY + 21, 24, '#111111', '#f1f1ef');
+  drawText(target, presentation.label.replace('·', '-'), cardX + 80, cardY + 24, 2, '#171717', 38);
+  drawText(target, presentation.preview, cardX + 842, cardY + 24, 2, '#747474', 20);
+
+  const seed = stableHash(`${scriptId}:${script?.content || script?.title || ''}`);
+  const lines = String(script?.content || '').replace(/\r\n?/g, '\n').split('\n').filter((line) => line.trim()).slice(0, 8);
+  const fallback = ['python ide community', 'share clean useful code', 'open in the app'];
   const source = lines.length ? lines : fallback;
-  source.slice(0, 9).forEach((line, index) => {
-    const y = 286 + (index * 27);
+  source.slice(0, presentation.project ? 3 : 7).forEach((line, index) => {
     const lineHash = stableHash(`${seed}:${line}:${index}`);
-    const indent = Math.min(3, (line.match(/^\s*/)?.[0].length || 0) / 2);
-    const start = 105 + (indent * 24);
-    const available = 730 - (indent * 24);
-    const length = Math.max(80, Math.min(available, 100 + ((line.length * 8 + (lineHash % 130)) % available)));
-    fillRoundedRect(target, start, y, length, 9, 4, index % 4 === 1 ? '#8fb9d8' : '#e6e6e1');
-    if (lineHash % 3 === 0) fillRoundedRect(target, start + length + 12, y, 54 + (lineHash % 80), 9, 4, '#d9a735');
+    const y = previewY + 48 + (index * 29);
+    const indent = presentation.project ? 0 : Math.min(3, Math.floor((line.match(/^\s*/)?.[0].length || 0) / 2));
+    const start = cardX + 42 + (indent * 22);
+    const available = presentation.project ? 520 : 650 - (indent * 22);
+    const length = Math.max(110, Math.min(available, 140 + ((line.length * 7 + (lineHash % 140)) % available)));
+    fillRoundedRect(target, start, y, length, 9, 4, index % 4 === 1 ? '#a9a9a6' : '#e6e6e1');
+    if (!presentation.project && lineHash % 3 === 0) {
+      fillRoundedRect(target, start + length + 12, y, 48 + (lineHash % 72), 9, 4, '#777779');
+    }
   });
 
-  const category = CATEGORY_LABELS[String(script?.category || 'other').toLowerCase()] || 'COMMUNITY';
-  fillRoundedRect(target, 875, 214, 220, 40, 10, '#f7f7f5');
-  drawText(target, category, 895, 224, 2, '#171717', 16);
-  fillCircle(target, 1002, 386, 84, '#20201f');
-  fillCircle(target, 1002, 386, 50, '#171717');
-  const orbit = [[1002,307],[1070,346],[1070,426],[1002,465],[934,426],[934,346]];
-  orbit.forEach(([x, y], index) => fillCircle(target, x, y, 11, index === 1 ? '#e8aa24' : '#1f5f95'));
+  fillRoundedRect(target, cardX + 844, previewY + 46, 142, 142, 30, '#2b2c2e');
+  drawTypeGlyph(target, presentation, cardX + 874, previewY + 76, 82, '#ededeb', '#2b2c2e');
+
+  const stats = [
+    [script?.view_count, 'VIEWS'], [script?.like_count, 'LIKES'],
+    [script?.run_count, 'RUNS'], [script?.download_count, 'IMPORTS'],
+  ];
+  stats.forEach(([value, label], index) => {
+    const center = cardX + 40 + (index * 266);
+    drawText(target, formatCardCount(value), center, cardY + cardHeight - 36, 2, '#171717', 7);
+    drawText(target, label, center + 72, cardY + cardHeight - 36, 1, '#747474', 10);
+  });
 }
 
 function crc32(bytes) {
@@ -304,11 +424,10 @@ async function encodePNG(target) {
 async function renderCard(script, scriptId) {
   const target = canvas(1200, 630, '#f7f7f5');
   drawBrand(target);
-  const category = CATEGORY_LABELS[String(script?.category || 'other').toLowerCase()] || 'COMMUNITY';
-  drawText(target, `${category} COMMUNITY WORK`, 68, 142, 3, '#6f6f6f', 30);
-  drawCodeArtwork(target, script, scriptId);
-  drawText(target, 'PYTHON IDE', 74, 584, 2, '#6f6f6f', 20);
-  drawText(target, 'OPEN IN APP', 952, 584, 2, '#6f6f6f', 20);
+  drawText(target, 'PYTHONIDE COMMUNITY WORK', 68, 132, 3, '#6f6f6f', 30);
+  drawUnifiedArtwork(target, script, scriptId);
+  drawText(target, 'PYTHON IDE', 74, 592, 2, '#6f6f6f', 20);
+  drawText(target, 'OPEN IN APP', 952, 592, 2, '#6f6f6f', 20);
   return encodePNG(target);
 }
 
@@ -321,7 +440,7 @@ async function handleSharePage(request, scriptId, env, fetcher = fetch) {
   if (!indexResponse.ok) return new Response('Share page is temporarily unavailable.', { status: 502 });
   const html = await indexResponse.text();
   const meta = socialPayload(scriptResult, scriptId, new URL(request.url).origin);
-  return new Response(injectMetadata(html, meta), {
+  return new Response(injectInitialScriptData(injectMetadata(html, meta), scriptResult), {
     status: 200,
     headers: {
       'Content-Type': 'text/html; charset=utf-8',
@@ -356,10 +475,13 @@ export {
   encodePNG,
   handleOGImage,
   handleSharePage,
+  injectInitialScriptData,
   injectMetadata,
   renderCard,
   safeHTTPSURL,
+  shareRevision,
   socialPayload,
+  workPresentation,
 };
 
 export default {

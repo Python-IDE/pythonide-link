@@ -25,6 +25,17 @@ test('parses every supported share route', () => {
   assert.equal(core.parseRoutePath('/s/%E0%A4%A').id, '%E0%A4%A');
 });
 
+test('keeps browser and copied paths clean while preserving English links', () => {
+  const scriptRoute = core.parseRoutePath('/s/scr_123?v=stale');
+  assert.equal(core.routeDisplayPath(scriptRoute, 'zh'), '/s/scr_123');
+  assert.equal(core.routeDisplayPath(scriptRoute, 'en'), '/s/scr_123?lang=en');
+  const importRoute = core.parseRoutePath('/import?url=https%3A%2F%2Fexample.com%2Fdemo.zip');
+  assert.equal(
+    core.routeDisplayPath(importRoute, 'en'),
+    '/import?url=https%3A%2F%2Fexample.com%2Fdemo.zip&lang=en',
+  );
+});
+
 test('creates encoded app deep links', () => {
   assert.equal(
     core.customURLFor({ type: 'script', id: 'scr 1&2' }),
@@ -81,6 +92,33 @@ test('accepts only HTTPS cover images', () => {
   assert.equal(core.safeImageURL('javascript:alert(1)'), '');
 });
 
+test('maps every community work into one stable card type system', () => {
+  assert.deepEqual(core.typePresentation({ category: 'html', file_type: 'html' }, 'zh'), {
+    kind: 'html', symbol: '</>', label: 'HTML · 单文件', isProject: false,
+  });
+  assert.deepEqual(core.typePresentation({ category: 'python', file_type: 'py' }, 'en'), {
+    kind: 'python', symbol: 'PY', label: 'Python · single file', isProject: false,
+  });
+  assert.deepEqual(core.typePresentation({
+    category: 'pygame', file_type: 'py', runtime: 'pygame', content_mode: 'project_package',
+  }, 'zh'), {
+    kind: 'game', symbol: '', label: 'Game · Pygame 项目', isProject: true,
+  });
+  assert.deepEqual(core.typePresentation({
+    category: 'miniapp', file_type: 'miniapp', package_id: 'pkg_1',
+  }, 'zh'), {
+    kind: 'miniapp', symbol: '', label: 'MiniApp · 项目', isProject: true,
+  });
+  assert.equal(core.isProjectScript({ tags: ['pygame', 'project'] }), true);
+});
+
+test('versions generated share images but keeps real HTTPS covers', () => {
+  const script = { updated_at: '2026-07-16T12:00:00Z' };
+  const image = core.shareImageURL(script, 'scr_123');
+  assert.match(image, /^https:\/\/link\.pythonide\.xin\/og\/script\/scr_123\.png\?v=[a-z0-9]+$/);
+  assert.equal(core.shareImageURL({ ...script, cover_image_url: 'https://cdn.example.com/work.png' }, 'scr_123'), 'https://cdn.example.com/work.png');
+});
+
 test('the page contains every DOM hook used by the controller', () => {
   const siteRoot = path.resolve(__dirname, '..');
   const html = fs.readFileSync(path.join(siteRoot, 'index.html'), 'utf8');
@@ -99,6 +137,8 @@ test('mobile share layout keeps one compact content flow with the primary action
   const html = fs.readFileSync(path.join(siteRoot, 'index.html'), 'utf8');
   const css = fs.readFileSync(path.join(siteRoot, 'assets/share-page.css'), 'utf8');
   assert.match(html, /class="preview-viewport"/);
+  assert.match(html, /class="work-typebar"/);
+  assert.match(html, /class="poster-preview hidden" id="posterPreview"/);
   assert.match(html, /class="author-row"[^>]*id="authorRow"/);
   assert.match(html, /class="button primary" id="openApp"/);
   assert.match(html, /class="button secondary"[^>]*id="downloadApp"/);
@@ -106,8 +146,11 @@ test('mobile share layout keeps one compact content flow with the primary action
   assert.doesNotMatch(html, /class="header-link"/);
   assert.doesNotMatch(html, /class="embedded-guide/);
   assert.doesNotMatch(html, /class="work-header/);
-  assert.match(html, /share-page\.css\?v=20260716-pill-buttons/);
-  assert.match(html, /share-page\.js\?v=20260716-pill-buttons/);
+  assert.match(html, /id="initial-script-data" type="application\/json">\{\}<\/script>/);
+  assert.match(html, /share-page\.css\?v=20260716-unified-work-card-2/);
+  assert.match(html, /share-page\.js\?v=20260716-unified-work-card-2/);
+  assert.doesNotMatch(html, /id="projectTitle"/);
+  assert.doesNotMatch(html, /id="projectDescription"/);
   assert.match(css, /min-height:\s*100svh/);
   assert.match(css, /-webkit-line-clamp:\s*2/);
   assert.match(css, /\.site-footer\s*\{\s*display:\s*none;/);
@@ -117,6 +160,8 @@ test('mobile share layout keeps one compact content flow with the primary action
   assert.match(css, /\.button\.primary\s*\{[\s\S]*?justify-content:\s*center/);
   assert.doesNotMatch(css, /\.button\.primary\s*\{[\s\S]*?justify-content:\s*space-between/);
   assert.match(css, /\.modal-actions \.button\s*\{[\s\S]*?text-align:\s*center/);
+  assert.match(css, /\.work-typebar\s*\{[\s\S]*?height:\s*46px/);
+  assert.match(css, /\.stats\s*\{[\s\S]*?height:\s*42px/);
 });
 
 test('404 fallback and controller cooperate to restore a clean path', () => {

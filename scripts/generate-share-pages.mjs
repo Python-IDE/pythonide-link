@@ -10,7 +10,7 @@ try {
   if (error?.code !== 'ERR_MODULE_NOT_FOUND') throw error;
   renderer = await import('../../link-edge/worker.js');
 }
-const { injectMetadata, renderCard, socialPayload } = renderer;
+const { injectInitialScriptData, injectMetadata, renderCard, socialPayload } = renderer;
 
 const API_BASE = process.env.COMMUNITY_API_BASE
   || 'https://community-api-axuaystczl.cn-hangzhou.fcapp.run';
@@ -57,12 +57,11 @@ async function generateScriptPage(template, script) {
   const scriptID = safeScriptID(script.script_id);
   if (!scriptID) return false;
   const meta = socialPayload(script, scriptID, SITE_ORIGIN);
-  meta.image = `${SITE_ORIGIN}/og/script/${encodeURIComponent(scriptID)}.png`;
-  meta.isGeneratedImage = true;
 
   const pageDirectory = path.join(shareRoot, scriptID);
   await mkdir(pageDirectory, { recursive: true });
-  await writeFile(path.join(pageDirectory, 'index.html'), injectMetadata(template, meta));
+  const page = injectInitialScriptData(injectMetadata(template, meta), script);
+  await writeFile(path.join(pageDirectory, 'index.html'), page);
 
   const image = await renderCard(script, scriptID);
   await writeFile(path.join(imageRoot, `${scriptID}.png`), image);

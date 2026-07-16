@@ -55,6 +55,10 @@
       gotIt: '我知道了',
       readOnly: '只读预览',
       partial: '部分预览',
+      codePreview: '代码预览',
+      workPreview: '作品预览',
+      singleFile: '单文件',
+      project: '项目',
       views: '浏览',
       likes: '喜欢',
       runs: '运行',
@@ -135,6 +139,10 @@
       gotIt: 'Got it',
       readOnly: 'Read-only preview',
       partial: 'Partial preview',
+      codePreview: 'Code preview',
+      workPreview: 'Work preview',
+      singleFile: 'single file',
+      project: 'project',
       views: 'Views',
       likes: 'Likes',
       runs: 'Runs',
@@ -244,6 +252,14 @@
     return { type: 'home', path: '/' };
   }
 
+  function routeDisplayPath(route, languageValue = 'zh', hash = '') {
+    const url = new URL(route?.path || '/', SITE_ORIGIN);
+    url.searchParams.delete('v');
+    if (languageValue === 'en') url.searchParams.set('lang', 'en');
+    else url.searchParams.delete('lang');
+    return `${url.pathname}${url.search}${hash || ''}`;
+  }
+
   function customURLFor(route) {
     if (route.type === 'script') {
       return `pythonide://community/script?id=${encodeURIComponent(route.id)}`;
@@ -319,7 +335,73 @@
   }
 
   function isProjectScript(script) {
-    return String(script.content_mode || '').toLowerCase() === 'project_package' || Boolean(script.package_id);
+    const contentMode = String(script.content_mode || '').toLowerCase();
+    const tags = normalizedTags(script).map((value) => value.toLowerCase());
+    return contentMode === 'project_package'
+      || Boolean(script.package_id)
+      || tags.includes('project')
+      || tags.includes('project_package')
+      || tags.includes('community_content_mode:project_package');
+  }
+
+  function typePresentation(script, languageValue = 'zh') {
+    const locale = languageValue === 'en' ? 'en' : 'zh';
+    const category = String(script.category || '').trim().toLowerCase();
+    const fileType = String(script.file_type || '').trim().replace(/^\./, '').toLowerCase();
+    const tags = normalizedTags(script).map((value) => value.toLowerCase());
+    const taggedRuntime = tags.find((value) => value.startsWith('community_runtime:'))?.split(':').slice(1).join(':') || '';
+    const runtime = String(script.runtime || taggedRuntime).trim().toLowerCase();
+    const project = isProjectScript(script);
+    const format = project
+      ? (locale === 'en' ? 'project' : '项目')
+      : (locale === 'en' ? 'single file' : '单文件');
+    const matches = (...values) => values.some((value) => (
+      category === value || fileType === value || runtime === value || tags.includes(value)
+    ));
+
+    if (matches('pygame', 'scene', 'game')) {
+      const runtimeLabel = matches('pygame') ? 'Pygame ' : (matches('scene') ? 'Scene ' : '');
+      return { kind: 'game', symbol: '', label: `Game · ${runtimeLabel}${format}`, isProject: project };
+    }
+    if (matches('miniapp', 'minip')) {
+      return { kind: 'miniapp', symbol: '', label: `MiniApp · ${format}`, isProject: project };
+    }
+    if (matches('appui', 'ui')) {
+      return { kind: 'appui', symbol: '', label: `AppUI · ${format}`, isProject: project };
+    }
+    if (matches('widget', 'widgets')) {
+      return { kind: 'widget', symbol: '', label: `Widget · ${format}`, isProject: project };
+    }
+    if (matches('html', 'htm')) {
+      return { kind: 'html', symbol: '</>', label: `HTML · ${format}`, isProject: project };
+    }
+    if (matches('python', 'py', 'pyw')) {
+      return { kind: 'python', symbol: 'PY', label: `Python · ${format}`, isProject: project };
+    }
+    return {
+      kind: 'other',
+      symbol: '{ }',
+      label: locale === 'en' ? 'PythonIDE · Community work' : 'PythonIDE · 社区作品',
+      isProject: project,
+    };
+  }
+
+  function shareRevision(script, scriptID = '') {
+    const source = String(
+      script?.content_hash || script?.updated_at || script?.approved_at || script?.version || scriptID || 'preview',
+    );
+    let hash = 2166136261;
+    for (const character of source) {
+      hash ^= character.codePointAt(0);
+      hash = Math.imul(hash, 16777619);
+    }
+    return (hash >>> 0).toString(36);
+  }
+
+  function shareImageURL(script, scriptID) {
+    const cover = safeImageURL(script?.cover_image_url || script?.preview_image_url || script?.thumbnail_url);
+    if (cover) return cover;
+    return `${SITE_ORIGIN}/og/script/${encodeURIComponent(scriptID)}.png?v=${shareRevision(script, scriptID)}`;
   }
 
   function socialDescription(script) {
@@ -345,9 +427,13 @@
     parseRoutePath,
     previewLines,
     preferredLanguage,
+    routeDisplayPath,
     safeForwardedPath,
     safeImageURL,
+    shareImageURL,
+    shareRevision,
     socialDescription,
+    typePresentation,
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = core;
@@ -369,9 +455,13 @@
   document.documentElement.lang = language === 'en' ? 'en' : 'zh-CN';
   document.documentElement.dataset.lang = language;
 
-  if (forwardedPath && global.history && typeof global.history.replaceState === 'function') {
+  if (global.history && typeof global.history.replaceState === 'function') {
     try {
-      global.history.replaceState(null, '', forwardedPath);
+      const cleanDisplayPath = routeDisplayPath(route, language, new URL(initialPath, SITE_ORIGIN).hash);
+      const visiblePath = `${location.pathname}${location.search}${location.hash}`;
+      if (forwardedPath || visiblePath !== cleanDisplayPath) {
+        global.history.replaceState(null, '', cleanDisplayPath);
+      }
     } catch {
       // Keep the fallback URL if the browser rejects history replacement.
     }
@@ -380,9 +470,8 @@
   const el = {};
   [
     'eyebrow', 'title', 'summary', 'authorRow', 'authorAvatar', 'authorInitial', 'authorName', 'authorDetail',
-    'workCard', 'fileBadge', 'fileName', 'fileDetail', 'tagList', 'previewSkeleton', 'coverPreview', 'coverImage',
-    'codePreview', 'codeLanguage', 'codeStatus', 'codeContent', 'projectPreview', 'projectKicker', 'projectTitle',
-    'projectDescription', 'projectFacts', 'genericPreview', 'genericSymbol', 'genericTitle', 'genericDescription',
+    'workCard', 'typeSymbol', 'typeLabel', 'previewLabel', 'previewSkeleton', 'coverPreview', 'coverImage',
+    'codePreview', 'codeContent', 'posterPreview', 'posterSymbol', 'projectFacts',
     'stats', 'openApp', 'openAppLabel', 'downloadApp', 'downloadAppLabel', 'copyLink', 'browserNote',
     'launchFallback', 'statusCard', 'statusTitle', 'statusMessage', 'retryButton', 'browserModal', 'modalKicker',
     'browserModalTitle', 'modalStep1', 'modalStep2', 'modalStep3', 'modalBackdrop', 'modalCopyLink', 'modalClose',
@@ -394,7 +483,6 @@
   let launchTimer = null;
   let currentScript = null;
   let currentView = route.type;
-  let codePreviewMode = 'readOnly';
 
   function setLoading(isLoading) {
     document.body.classList.toggle('is-loading', isLoading);
@@ -428,7 +516,6 @@
     setText(el.skipLink, tr('skipLink'));
     setText(el.footerWebsite, tr('website'));
     setText(el.footerPrivacy, tr('privacy'));
-    setText(el.codeStatus, tr(codePreviewMode));
     setText(document.querySelector('.loading-label'), tr('loadingWork'));
     setText(el.launchFallback?.querySelector('strong'), tr('launchTitle'));
     setText(el.launchFallback?.querySelector('p'), tr('launchBody'));
@@ -456,6 +543,13 @@
       // Language switching still works when storage is unavailable.
     }
     applyStaticCopy();
+    if (global.history && typeof global.history.replaceState === 'function') {
+      try {
+        global.history.replaceState(null, '', routeDisplayPath(route, language, location.hash));
+      } catch {
+        // The page remains usable if an embedded browser rejects history changes.
+      }
+    }
     if (refreshContent) refreshCurrentView();
   }
 
@@ -485,15 +579,6 @@
     setMeta('twitter:image', imageURL || DEFAULT_SHARE_IMAGE, false);
     const canonical = document.head.querySelector('link[rel="canonical"]');
     if (canonical) canonical.setAttribute('href', canonicalURL);
-  }
-
-  function renderTags(tags) {
-    el.tagList.replaceChildren(...tags.map((text) => {
-      const tag = document.createElement('span');
-      tag.className = 'tag';
-      tag.textContent = text;
-      return tag;
-    }));
   }
 
   function renderStats(items) {
@@ -527,8 +612,73 @@
   function hidePreviews() {
     el.coverPreview.classList.add('hidden');
     el.codePreview.classList.add('hidden');
-    el.projectPreview.classList.add('hidden');
-    el.genericPreview.classList.add('hidden');
+    el.posterPreview.classList.add('hidden');
+  }
+
+  function svgNode(name, attributes = {}) {
+    const node = document.createElementNS('http://www.w3.org/2000/svg', name);
+    Object.entries(attributes).forEach(([key, value]) => node.setAttribute(key, String(value)));
+    return node;
+  }
+
+  function createTypeIcon(kind) {
+    const svg = svgNode('svg', { viewBox: '0 0 24 24', 'aria-hidden': 'true' });
+    if (kind === 'miniapp') {
+      svg.append(
+        svgNode('rect', { x: 3, y: 4, width: 18, height: 16, rx: 3 }),
+        svgNode('path', { d: 'M3 9h18' }),
+        svgNode('circle', { cx: 7, cy: 6.5, r: 0.7 }),
+        svgNode('circle', { cx: 10, cy: 6.5, r: 0.7 }),
+      );
+    } else if (kind === 'game') {
+      svg.append(
+        svgNode('path', { d: 'M8.2 8h7.6c2 0 3.4 1.3 3.9 3.2l1 4.1c.4 1.7-1.5 3-2.8 1.8l-2.2-2H8.3l-2.2 2c-1.3 1.2-3.2-.1-2.8-1.8l1-4.1C4.8 9.3 6.2 8 8.2 8Z' }),
+        svgNode('path', { d: 'M8 11v4M6 13h4' }),
+        svgNode('circle', { cx: 16, cy: 12, r: 0.8 }),
+        svgNode('circle', { cx: 18, cy: 14, r: 0.8 }),
+      );
+    } else if (kind === 'appui') {
+      svg.append(
+        svgNode('rect', { x: 3, y: 4, width: 18, height: 16, rx: 3 }),
+        svgNode('path', { d: 'M8 4v16M8 10h13' }),
+      );
+    } else if (kind === 'widget') {
+      svg.append(
+        svgNode('rect', { x: 3, y: 3, width: 8, height: 8, rx: 2 }),
+        svgNode('rect', { x: 13, y: 3, width: 8, height: 5, rx: 2 }),
+        svgNode('rect', { x: 3, y: 13, width: 8, height: 8, rx: 2 }),
+        svgNode('rect', { x: 13, y: 10, width: 8, height: 11, rx: 2 }),
+      );
+    }
+    return svg;
+  }
+
+  function setTypeIcon(target, presentation) {
+    target.dataset.kind = presentation.kind;
+    if (presentation.symbol) {
+      target.textContent = presentation.symbol;
+      return;
+    }
+    target.replaceChildren(createTypeIcon(presentation.kind));
+  }
+
+  function renderPreviewHeader(presentation, mode) {
+    setText(el.typeLabel, presentation.label);
+    setText(el.previewLabel, mode === 'code' ? tr('codePreview') : tr('workPreview'));
+    setTypeIcon(el.typeSymbol, presentation);
+    setTypeIcon(el.posterSymbol, presentation);
+  }
+
+  function renderPoster(presentation, facts = []) {
+    hidePreviews();
+    renderPreviewHeader(presentation, 'work');
+    el.projectFacts.replaceChildren(...facts.map((value) => {
+      const fact = document.createElement('span');
+      fact.className = 'project-fact';
+      fact.textContent = value;
+      return fact;
+    }));
+    el.posterPreview.classList.remove('hidden');
   }
 
   function formatDate(value) {
@@ -582,44 +732,30 @@
   }
 
   function renderProject(script, presentation) {
-    hidePreviews();
-    el.projectPreview.classList.remove('hidden');
-    setText(el.projectKicker, 'PYTHONIDE PROJECT');
-    setText(el.projectTitle, script.title || (language === 'en' ? 'Complete project' : '完整项目'));
-    setText(el.projectDescription, script.ai_usage_hint || (language === 'en'
-      ? 'Download and run the complete project in PythonIDE.'
-      : '在 PythonIDE 中下载并运行完整项目内容。'));
     const facts = [
-      script.runtime ? String(script.runtime).toUpperCase() : '',
       script.entry_file ? `${language === 'en' ? 'Entry' : '入口'} ${script.entry_file}` : '',
       Number(script.package_file_count) > 0
         ? `${script.package_file_count} ${language === 'en' ? 'files' : '个文件'}`
         : '',
       formatBytes(script.package_size_bytes),
     ].filter(Boolean);
-    el.projectFacts.replaceChildren(...facts.map((value) => {
-      const fact = document.createElement('span');
-      fact.className = 'project-fact';
-      fact.textContent = value;
-      return fact;
-    }));
+    renderPoster(presentation, facts);
   }
 
-  function renderGeneric(title, description, symbol) {
-    hidePreviews();
-    el.genericPreview.classList.remove('hidden');
-    setText(el.genericTitle, title);
-    setText(el.genericDescription, description);
-    setText(el.genericSymbol, symbol || '{ }');
+  function renderGeneric(label, symbol) {
+    renderPoster({
+      kind: 'other',
+      symbol: symbol || '{ }',
+      label,
+      isProject: false,
+    });
   }
 
-  function renderCodePreview(lines, presentation, script) {
+  function renderCodePreview(lines, presentation) {
     hidePreviews();
+    renderPreviewHeader(presentation, 'code');
     renderCode(lines);
-    const content = String(script.content || '');
-    codePreviewMode = content.length > 8000 || content.split(/\r?\n/).length > 34 ? 'partial' : 'readOnly';
-    setText(el.codeLanguage, presentation.language.toUpperCase());
-    setText(el.codeStatus, tr(codePreviewMode));
+    el.projectFacts.replaceChildren();
     el.codePreview.classList.remove('hidden');
   }
 
@@ -641,24 +777,21 @@
     setText(el.openAppLabel, tr('openApp'));
     const title = String(script.title || tr('community')).trim() || tr('community');
     const description = socialDescription(script);
-    const presentation = filePresentation(script);
-    const tags = normalizedTags(script);
+    const presentation = typePresentation(script, language);
     const coverURL = safeImageURL(script.cover_image_url || script.preview_image_url || script.thumbnail_url);
     const lines = previewLines(script.content, 34, 8000);
 
     setText(el.eyebrow, tr('communityWork'));
     setText(el.title, title);
     setText(el.summary, description);
-    setText(el.fileBadge, presentation.badge);
-    setText(el.fileName, title);
-    setText(el.fileDetail, presentation.detail);
-    renderTags(tags);
     renderAuthor(script);
+    renderPreviewHeader(presentation, 'work');
 
     if (coverURL) {
       hidePreviews();
       el.coverImage.onload = () => {
         hidePreviews();
+        renderPreviewHeader(presentation, 'work');
         el.coverPreview.classList.remove('hidden');
         setLoading(false);
       };
@@ -666,9 +799,9 @@
         if (isProjectScript(script)) {
           renderProject(script, presentation);
         } else if (lines.length) {
-          renderCodePreview(lines, presentation, script);
+          renderCodePreview(lines, presentation);
         } else {
-          renderGeneric(title, script.ai_usage_hint || tr('previewUnavailableBody'), presentation.badge);
+          renderPoster(presentation);
         }
         setLoading(false);
       };
@@ -676,14 +809,14 @@
     } else if (isProjectScript(script)) {
       renderProject(script, presentation);
     } else if (lines.length) {
-      renderCodePreview(lines, presentation, script);
+      renderCodePreview(lines, presentation);
     } else {
-      renderGeneric(title, script.ai_usage_hint || tr('previewUnavailableBody'), presentation.badge);
+      renderPoster(presentation);
     }
 
     renderScriptStats(script);
 
-    updatePageMetadata(title, description, `${SITE_ORIGIN}/og/script/${encodeURIComponent(route.id)}.png`);
+    updatePageMetadata(title, description, shareImageURL(script, route.id));
     setText(el.actionDescription, script.ai_usage_hint || tr('actionDescription'));
     if (!coverURL) setLoading(false);
   }
@@ -709,11 +842,7 @@
     setText(el.eyebrow, tr('communityWork'));
     setText(el.title, tr('openCommunityWork'));
     setText(el.summary, tr('previewFailedBody'));
-    setText(el.fileBadge, 'PY');
-    setText(el.fileName, tr('community'));
-    setText(el.fileDetail, route.id);
-    renderTags([tr('community')]);
-    renderGeneric(tr('previewUnavailable'), tr('previewUnavailableBody'), '{ }');
+    renderGeneric(`PythonIDE · ${tr('community')}`, '{ }');
     renderStats([
       { value: '—', label: tr('views') }, { value: '—', label: tr('likes') },
       { value: '—', label: tr('runs') }, { value: '—', label: tr('imports') },
@@ -723,16 +852,29 @@
     setLoading(false);
   }
 
-  async function loadScript() {
+  function initialScriptData(scriptID) {
+    const node = document.getElementById('initial-script-data');
+    if (!node) return null;
+    try {
+      const script = JSON.parse(node.textContent || '{}');
+      return String(script?.script_id || '') === String(scriptID || '') ? script : null;
+    } catch {
+      return null;
+    }
+  }
+
+  async function loadScript(initialScript = null) {
     currentView = 'script-loading';
-    setLoading(true);
     hideStatus();
-    retryAction = loadScript;
     el.coverImage.onload = null;
     el.coverImage.onerror = null;
     el.coverImage.removeAttribute('src');
+    const hasInitialScript = Boolean(initialScript);
+    if (hasInitialScript) renderScript(initialScript);
+    else setLoading(true);
+    retryAction = () => loadScript(initialScript);
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 12000);
+    const timeout = setTimeout(() => controller.abort(), 20000);
     try {
       const response = await fetch(`${API_BASE}/v1/scripts/${encodeURIComponent(route.id)}`, {
         headers: { Accept: 'application/json' },
@@ -743,7 +885,7 @@
       if (!payload || !payload.script) throw new Error('Missing script');
       renderScript(payload.script);
     } catch {
-      renderScriptError();
+      if (!hasInitialScript) renderScriptError();
     } finally {
       clearTimeout(timeout);
     }
@@ -757,11 +899,7 @@
     setText(el.eyebrow, `PythonIDE · ${tr('remoteImport')}`);
     setText(el.title, route.remote ? tr('importRemoteProject') : tr('missingProjectURL'));
     setText(el.summary, route.remote ? tr('remoteSummary') : tr('invalidRemoteSummary'));
-    setText(el.fileBadge, 'URL');
-    setText(el.fileName, route.remote ? hostnameFor(route.remote) || tr('remoteProject') : tr('invalidLink'));
-    setText(el.fileDetail, tr('remoteImport'));
-    renderTags([tr('remoteImport')]);
-    renderGeneric(tr('remoteProject'), route.remote || tr('trustedSource'), '↗');
+    renderGeneric(`URL · ${tr('remoteImport')}`, '↗');
     renderStats([
       { value: 'HTTPS', label: tr('transfer') }, { value: tr('readOnlyValue'), label: tr('preview') },
       { value: 'App', label: tr('method') }, { value: tr('confirmValue'), label: tr('source') },
@@ -785,11 +923,7 @@
     setText(el.eyebrow, `PythonIDE · ${tr('shareLink')}`);
     setText(el.title, tr('continueInApp'));
     setText(el.summary, tr('shortSummary'));
-    setText(el.fileBadge, 'LINK');
-    setText(el.fileName, tr('shareLink'));
-    setText(el.fileDetail, route.code);
-    renderTags([tr('shareLink')]);
-    renderGeneric(tr('pythonIDEShare'), tr('useButton'), '↗');
+    renderGeneric(`PythonIDE · ${tr('shareLink')}`, '↗');
     renderStats([
       { value: tr('safeValue'), label: tr('linkStructure') }, { value: 'App', label: tr('openMethod') },
       { value: '—', label: tr('content') }, { value: '—', label: tr('status') },
@@ -808,11 +942,7 @@
     setText(el.eyebrow, 'PythonIDE');
     setText(el.title, tr('homeTitle'));
     setText(el.summary, tr('homeSummary'));
-    setText(el.fileBadge, 'PY');
-    setText(el.fileName, 'PythonIDE');
-    setText(el.fileDetail, tr('homeDetail'));
-    renderTags(['Python', 'AppUI', 'MiniApp']);
-    renderGeneric('PythonIDE', tr('homePreview'), '{ }');
+    renderGeneric(`PythonIDE · ${tr('native')}`, 'PY');
     renderStats([
       { value: 'Python', label: tr('language') }, { value: 'iOS', label: tr('platform') },
       { value: tr('native'), label: tr('experience') }, { value: tr('community'), label: tr('shareLink') },
@@ -829,7 +959,7 @@
   }
 
   async function copyCurrentLink() {
-    const cleanURL = `${SITE_ORIGIN}${route.path || '/'}`;
+    const cleanURL = `${SITE_ORIGIN}${routeDisplayPath(route, language)}`;
     try {
       await navigator.clipboard.writeText(cleanURL);
       showToast(tr('copied'));
@@ -876,16 +1006,16 @@
 
   function refreshCurrentView() {
     if (currentView === 'script' && currentScript) {
-      const presentation = filePresentation(currentScript);
+      const presentation = typePresentation(currentScript, language);
       setText(el.eyebrow, tr('communityWork'));
       renderAuthor(currentScript);
       renderScriptStats(currentScript);
-      setText(el.codeStatus, tr(codePreviewMode));
       setText(el.actionDescription, currentScript.ai_usage_hint || tr('actionDescription'));
-      if (!el.projectPreview.classList.contains('hidden')) renderProject(currentScript, presentation);
-      if (!el.genericPreview.classList.contains('hidden')) {
-        const title = String(currentScript.title || tr('community')).trim() || tr('community');
-        renderGeneric(title, currentScript.ai_usage_hint || tr('previewUnavailableBody'), presentation.badge);
+      if (!el.codePreview.classList.contains('hidden')) renderPreviewHeader(presentation, 'code');
+      else renderPreviewHeader(presentation, 'work');
+      if (!el.posterPreview.classList.contains('hidden')) {
+        if (isProjectScript(currentScript)) renderProject(currentScript, presentation);
+        else renderPoster(presentation);
       }
       return;
     }
@@ -926,7 +1056,7 @@
   el.downloadApp.href = APP_STORE_URL;
   setLanguage(language, false);
 
-  if (route.type === 'script') loadScript();
+  if (route.type === 'script') loadScript(initialScriptData(route.id));
   else if (route.type === 'import') loadImport();
   else if (route.type === 'short') loadShort();
   else loadHome();

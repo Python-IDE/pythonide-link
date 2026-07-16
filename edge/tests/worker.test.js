@@ -2,11 +2,23 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   handleSharePage,
+  injectInitialScriptData,
   injectMetadata,
   renderCard,
   safeHTTPSURL,
+  shareRevision,
   socialPayload,
+  workPresentation,
 } from '../worker.js';
+
+test('embeds safe first-paint work data into generated pages', () => {
+  const template = '<script id="initial-script-data" type="application/json">{}</script>';
+  const html = injectInitialScriptData(template, { script_id: 'scr_1', title: '$1</script><b>unsafe</b>' });
+  assert.match(html, /"script_id":"scr_1"/);
+  assert.match(html, /"title":"\$1\\u003c\/script>/);
+  assert.doesNotMatch(html, /<b>unsafe<\/b>/);
+  assert.match(html, /\\u003c\/script>/);
+});
 
 const script = {
   title: '天气卡片 <测试>',
@@ -25,8 +37,9 @@ test('builds canonical per-script social metadata', () => {
   assert.equal(meta.title, '天气卡片 <测试>');
   assert.equal(meta.description, '一个简洁的天气卡片作品');
   assert.equal(meta.url, 'https://link.pythonide.xin/s/scr_123');
-  assert.equal(meta.image, 'https://link.pythonide.xin/og/script/scr_123.png');
+  assert.equal(meta.image, `https://link.pythonide.xin/og/script/scr_123.png?v=${shareRevision(script, 'scr_123')}`);
   assert.equal(meta.isGeneratedImage, true);
+  assert.equal(meta.programmingLanguage, 'PYTHON');
 });
 
 test('uses an existing HTTPS cover as the share thumbnail', () => {
@@ -41,8 +54,28 @@ test('injects escaped metadata into the static share page', () => {
   const output = injectMetadata(html, socialPayload(script, 'scr_123'));
   assert.match(output, /天气卡片 &lt;测试&gt;/);
   assert.match(output, /og:image/);
+  assert.match(output, /og:image:alt/);
   assert.match(output, /application\/ld\+json/);
   assert.doesNotMatch(output, /<title>Old<\/title>/);
+});
+
+test('uses one semantic type system for generated cards', () => {
+  assert.deepEqual(workPresentation({ category: 'html', file_type: 'html' }), {
+    kind: 'html', label: 'HTML · SINGLE FILE', preview: 'CODE PREVIEW', project: false, language: 'HTML',
+  });
+  assert.deepEqual(workPresentation({
+    category: 'pygame', runtime: 'pygame', file_type: 'py', content_mode: 'project_package',
+  }), {
+    kind: 'game', label: 'GAME · PYGAME PROJECT', preview: 'WORK PREVIEW', project: true, language: 'PYGAME',
+  });
+  assert.deepEqual(workPresentation({
+    category: 'python', file_type: 'py', tags: ['pygame', 'game', 'project'],
+  }), {
+    kind: 'game', label: 'GAME · PYGAME PROJECT', preview: 'WORK PREVIEW', project: true, language: 'PYGAME',
+  });
+  assert.deepEqual(workPresentation({ category: 'miniapp', package_id: 'pkg_1' }), {
+    kind: 'miniapp', label: 'MINIAPP · PROJECT', preview: 'WORK PREVIEW', project: true, language: 'MINIAPP',
+  });
 });
 
 test('renders a valid 1200 by 630 PNG social card', async () => {
@@ -54,8 +87,8 @@ test('renders a valid 1200 by 630 PNG social card', async () => {
   assert.ok(bytes.byteLength > 10000);
 });
 
-test('server-renders metadata before a social crawler receives the page', async () => {
-  const staticHTML = '<html><head><!-- edge:meta-start --><meta name="description" content="old"><!-- edge:meta-end --><title>Old</title></head><body>Share page</body></html>';
+test('server-renders metadata and first-paint data before a client receives the page', async () => {
+  const staticHTML = '<html><head><!-- edge:meta-start --><meta name="description" content="old"><!-- edge:meta-end --><title>Old</title><script id="initial-script-data" type="application/json">{}</script></head><body>Share page</body></html>';
   const fetcher = async (url) => {
     if (String(url).includes('/v1/scripts/')) {
       return new Response(JSON.stringify({ script }), { status: 200, headers: { 'Content-Type': 'application/json' } });
@@ -73,4 +106,5 @@ test('server-renders metadata before a social crawler receives the page', async 
   assert.match(response.headers.get('content-type'), /text\/html/);
   assert.match(html, /天气卡片 &lt;测试&gt;/);
   assert.match(html, /https:\/\/link\.pythonide\.xin\/og\/script\/scr_123\.png/);
+  assert.match(html, /"title":"天气卡片 \\u003c测试>"/);
 });
