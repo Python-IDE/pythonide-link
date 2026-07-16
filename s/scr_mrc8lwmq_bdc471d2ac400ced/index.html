@@ -12,20 +12,24 @@
     <meta property="og:title" content="今日片语">
     <meta property="og:description" content="这是一个桌面小组件，用于在桌面上展示每日一句精选名言或语录，支持自定义标题、背景颜色和文字样式。">
     <meta property="og:url" content="https://link.pythonide.xin/s/scr_mrc8lwmq_bdc471d2ac400ced">
-    <meta property="og:image" content="https://link.pythonide.xin/og/script/scr_mrc8lwmq_bdc471d2ac400ced.png">
+    <meta property="og:image" content="https://link.pythonide.xin/og/script/scr_mrc8lwmq_bdc471d2ac400ced.png?v=1lxpbf8">
+    <meta property="og:image:secure_url" content="https://link.pythonide.xin/og/script/scr_mrc8lwmq_bdc471d2ac400ced.png?v=1lxpbf8">
+    <meta property="og:image:alt" content="今日片语 · PythonIDE 作品预览">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="今日片语">
     <meta name="twitter:description" content="这是一个桌面小组件，用于在桌面上展示每日一句精选名言或语录，支持自定义标题、背景颜色和文字样式。">
-    <meta name="twitter:image" content="https://link.pythonide.xin/og/script/scr_mrc8lwmq_bdc471d2ac400ced.png">
+    <meta name="twitter:image" content="https://link.pythonide.xin/og/script/scr_mrc8lwmq_bdc471d2ac400ced.png?v=1lxpbf8">
+    <meta name="twitter:image:alt" content="今日片语 · PythonIDE 作品预览">
     <link rel="canonical" href="https://link.pythonide.xin/s/scr_mrc8lwmq_bdc471d2ac400ced">
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"今日片语","description":"这是一个桌面小组件，用于在桌面上展示每日一句精选名言或语录，支持自定义标题、背景颜色和文字样式。","url":"https://link.pythonide.xin/s/scr_mrc8lwmq_bdc471d2ac400ced","author":{"@type":"Person","name":"今晚打老虎🐯"},"programmingLanguage":"Python","codeRepository":"https://link.pythonide.xin/s/scr_mrc8lwmq_bdc471d2ac400ced"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"今日片语","description":"这是一个桌面小组件，用于在桌面上展示每日一句精选名言或语录，支持自定义标题、背景颜色和文字样式。","url":"https://link.pythonide.xin/s/scr_mrc8lwmq_bdc471d2ac400ced","author":{"@type":"Person","name":"今晚打老虎🐯"},"programmingLanguage":"PYTHON","codeRepository":"https://link.pythonide.xin/s/scr_mrc8lwmq_bdc471d2ac400ced"}</script>
     <!-- edge:meta-end -->
     <link rel="icon" href="/assets/brand-mark.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="/assets/share-page.css?v=20260716-pill-buttons">
+    <link rel="stylesheet" href="/assets/share-page.css?v=20260716-unified-work-card-2">
     <title>今日片语 · Python IDE</title>
-    <script defer src="/assets/share-page.js?v=20260716-pill-buttons"></script>
+    <script id="initial-script-data" type="application/json">{"script_id":"scr_mrc8lwmq_bdc471d2ac400ced","title":"今日片语","summary":"每日一言桌面小组件，保存到工作区运行后，可以在桌面配置小组件","category":"widget","file_type":"py","author_id":"usr_a3c5cf0872a75cbf1adc115a8b5c","author_name":"今晚打老虎🐯","author_avatar_id":"avatar_0728","author_premium_status":"lifetime","author_donation_level":"eternal","status":"active","created_at":"2026-07-08T15:32:40.459Z","updated_at":"2026-07-09T09:22:19.150Z","approved_at":"2026-07-08T15:33:06.290Z","view_count":48,"run_count":40,"download_count":10,"like_count":1,"dislike_count":0,"score":1,"color_seed":"widget","ai_summary":"这是一个桌面小组件，用于在桌面上展示每日一句精选名言或语录，支持自定义标题、背景颜色和文字样式。","ai_usage_hint":"保存到工作区后，在桌面配置小组件即可使用。","ai_analysis_source":"ai","ai_analysis_model":"deepseek-chat","ai_analysis_at":"2026-07-09T09:22:19.166Z","tags":["widget"],"ai_tags":["桌面小组件","每日一言","语录展示"]}</script>
+    <script defer src="/assets/share-page.js?v=20260716-unified-work-card-2"></script>
   </head>
   <body class="is-loading">
     <a class="skip-link" href="#main-content" id="skipLink">跳到作品内容</a>
@@ -63,12 +67,13 @@
       </section>
 
       <section class="work-card" id="workCard" aria-label="作品预览" aria-busy="true">
-        <div class="visually-hidden" aria-hidden="true">
-          <span id="fileBadge">PY</span>
-          <span id="fileDetail">正在准备内容</span>
-          <span id="fileName">作品预览</span>
-          <div id="tagList"></div>
-        </div>
+        <header class="work-typebar">
+          <div class="work-type">
+            <span class="type-symbol" id="typeSymbol" aria-hidden="true">PY</span>
+            <strong id="typeLabel">Python · 单文件</strong>
+          </div>
+          <span class="preview-kind" id="previewLabel">代码预览</span>
+        </header>
 
         <div class="preview-viewport">
           <div class="preview-skeleton" id="previewSkeleton" aria-hidden="true">
@@ -80,28 +85,15 @@
           </figure>
 
           <div class="code-preview hidden" id="codePreview">
-            <div class="code-toolbar">
-              <span id="codeLanguage">PYTHON</span>
-              <span id="codeStatus">只读预览</span>
-            </div>
             <pre aria-label="代码预览"><code id="codeContent"></code></pre>
             <div class="preview-fade" aria-hidden="true"></div>
           </div>
 
-          <div class="project-preview hidden" id="projectPreview">
-            <div class="project-orbit" aria-hidden="true"><span></span><span></span><span></span></div>
-            <p class="project-kicker" id="projectKicker">Python IDE Project</p>
-            <h2 id="projectTitle">完整项目</h2>
-            <p id="projectDescription">在 App 中下载并运行完整项目内容。</p>
+          <div class="poster-preview hidden" id="posterPreview">
+            <div class="poster-grid" aria-hidden="true"></div>
+            <div class="poster-lines" aria-hidden="true"><span></span><span></span><span></span></div>
+            <span class="poster-symbol" id="posterSymbol" aria-hidden="true">PY</span>
             <div class="project-facts" id="projectFacts"></div>
-          </div>
-
-          <div class="generic-preview hidden" id="genericPreview">
-            <span class="generic-symbol" id="genericSymbol" aria-hidden="true">{ }</span>
-            <div>
-              <h2 id="genericTitle">Python IDE 作品</h2>
-              <p id="genericDescription">在 App 中查看完整内容。</p>
-            </div>
           </div>
 
           <section class="status-card hidden" id="statusCard" role="status" aria-live="polite">
