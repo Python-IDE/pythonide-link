@@ -1,0 +1,17 @@
+{
+  "client_id": "https://link.pythonide.xin/ai-oauth/client.json",
+  "client_name": "PythonIDE",
+  "client_uri": "https://pythonide.xin",
+  "logo_uri": "https://link.pythonide.xin/assets/app-icon.png",
+  "redirect_uris": [
+    "https://link.pythonide.xin/ai-oauth/callback"
+  ],
+  "grant_types": [
+    "authorization_code",
+    "refresh_token"
+  ],
+  "response_types": [
+    "code"
+  ],
+  "token_endpoint_auth_method": "none"
+}

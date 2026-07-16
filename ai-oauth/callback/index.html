@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#171717" media="(prefers-color-scheme: dark)">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; object-src 'none'">
+  <title>正在返回 PythonIDE</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #fff;
+      --surface: #fff;
+      --ink: #0d0d0d;
+      --muted: #6f6f6f;
+      --faint: #929292;
+      --line: rgba(13, 13, 13, .12);
+      --line-strong: rgba(13, 13, 13, .22);
+      --inverse: #0d0d0d;
+      --inverse-text: #fff;
+      --danger: #b42318;
+      --danger-soft: rgba(180, 35, 24, .08);
+      --ease: cubic-bezier(.22, 1, .36, 1);
+      --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, "PingFang SC", sans-serif;
+      font-family: var(--font);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #171717;
+        --surface: #202020;
+        --ink: #f5f5f5;
+        --muted: #a6a6a6;
+        --faint: #858585;
+        --line: rgba(255, 255, 255, .12);
+        --line-strong: rgba(255, 255, 255, .22);
+        --inverse: #f5f5f5;
+        --inverse-text: #111;
+        --danger: #ff8b82;
+        --danger-soft: rgba(255, 139, 130, .1);
+      }
+    }
+    * { box-sizing: border-box; }
+    html { min-width: 320px; min-height: 100%; background: var(--bg); -webkit-text-size-adjust: 100%; }
+    body {
+      min-height: 100vh;
+      min-height: 100svh;
+      margin: 0;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--font);
+      -webkit-font-smoothing: antialiased;
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      pointer-events: none;
+      background: radial-gradient(70% 55% at 50% -8%, rgba(127,127,127,.13), transparent 72%), var(--bg);
+    }
+    [hidden] { display: none !important; }
+    .site-header, .site-footer { width: min(1120px, calc(100% - 40px)); margin: 0 auto; }
+    .site-header {
+      min-height: calc(72px + env(safe-area-inset-top));
+      padding-top: env(safe-area-inset-top);
+      display: flex;
+      align-items: center;
+      border-bottom: 1px solid var(--line);
+    }
+    .brand { display: inline-flex; align-items: center; gap: 10px; font-size: 17px; font-weight: 650; letter-spacing: -.02em; }
+    .brand-mark { width: 28px; height: 28px; display: block; }
+    main {
+      width: min(100%, 640px);
+      margin: 0 auto;
+      padding: clamp(52px, 9vh, 108px) 24px 72px;
+      display: grid;
+      place-items: center;
+      align-content: center;
+    }
+    .auth-state { width: min(100%, 520px); display: grid; justify-items: center; text-align: center; animation: enter 520ms var(--ease) both; }
+    .indicator {
+      width: 58px;
+      height: 58px;
+      margin-bottom: 30px;
+      border: 1px solid var(--line);
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: var(--surface);
+      box-shadow: 0 14px 40px rgba(0,0,0,.06);
+    }
+    .spinner { width: 28px; height: 28px; border: 2px solid var(--line-strong); border-top-color: var(--ink); border-radius: 50%; animation: spin 760ms linear infinite; }
+    .state-symbol { display: none; font-size: 25px; line-height: 1; }
+    body[data-state="fallback"] .spinner, body[data-state="error"] .spinner { display: none; }
+    body[data-state="fallback"] .fallback-symbol, body[data-state="error"] .error-symbol { display: block; }
+    body[data-state="error"] .indicator { border-color: var(--danger); background: var(--danger-soft); box-shadow: none; color: var(--danger); }
+    .eyebrow { margin: 0 0 16px; color: var(--muted); font-size: 12px; font-weight: 680; letter-spacing: .1em; text-transform: uppercase; }
+    h1 { margin: 0; font-size: clamp(38px, 9vw, 54px); font-weight: 620; letter-spacing: -.052em; line-height: 1.06; text-wrap: balance; }
+    .message { max-width: 500px; margin: 22px 0 0; color: var(--muted); font-size: clamp(16px, 3.8vw, 18px); line-height: 1.65; text-wrap: pretty; }
+    .actions { width: min(100%, 320px); margin-top: 34px; display: grid; gap: 12px; }
+    .button {
+      min-height: 50px;
+      padding: 0 22px;
+      border: 1px solid var(--inverse);
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      background: var(--inverse);
+      color: var(--inverse-text);
+      font-size: 15px;
+      font-weight: 650;
+      text-decoration: none;
+      transition: transform 220ms var(--ease), opacity 180ms ease;
+    }
+    .button:hover { transform: translateY(-2px); opacity: .9; }
+    .helper { margin: 0; color: var(--faint); font-size: 12px; line-height: 1.55; }
+    .trust-note { margin: 34px 0 0; display: inline-flex; align-items: center; gap: 8px; color: var(--faint); font-size: 12px; }
+    .trust-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ink); opacity: .54; }
+    .site-footer {
+      min-height: calc(64px + env(safe-area-inset-bottom));
+      padding-bottom: env(safe-area-inset-bottom);
+      border-top: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--faint);
+      font-size: 11px;
+    }
+    .footer-context { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes enter { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+    @media (max-width: 520px) {
+      .site-header, .site-footer { width: calc(100% - 32px); }
+      main { padding: 44px 20px 56px; }
+      .footer-context { display: none; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body data-state="returning">
+  <header class="site-header">
+    <div class="brand" aria-label="PythonIDE">
+      <svg class="brand-mark" viewBox="60 100 904 824" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <circle cx="826" cy="512" r="116" fill="#E8AA24"/><circle cx="669" cy="240" r="116" fill="#1F5F95"/>
+        <circle cx="355" cy="240" r="116" fill="#1F5F95"/><circle cx="198" cy="512" r="116" fill="#1F5F95"/>
+        <circle cx="355" cy="784" r="116" fill="#1F5F95"/><circle cx="669" cy="784" r="116" fill="#1F5F95"/>
+      </svg>
+      <span>PythonIDE</span>
+    </div>
+  </header>
+  <main>
+    <section class="auth-state" aria-labelledby="title" aria-describedby="status">
+      <div class="indicator" aria-hidden="true"><span class="spinner"></span><span class="state-symbol fallback-symbol">→</span><span class="state-symbol error-symbol">!</span></div>
+      <p class="eyebrow" id="eyebrow">安全连接</p>
+      <h1 id="title">正在返回 PythonIDE</h1>
+      <p class="message" id="status" role="status" aria-live="polite">正在将登录结果安全地交还给 App，这通常只需一瞬间。</p>
+      <div class="actions" id="actions" hidden>
+        <a class="button" id="continue" href="pythonide://oauth/custom-ai"><span id="button-label">返回 PythonIDE</span><span aria-hidden="true">→</span></a>
+        <p class="helper" id="helper">若 App 没有自动打开，请点击上方按钮继续。</p>
+      </div>
+      <p class="trust-note"><span class="trust-dot" aria-hidden="true"></span><span id="trust-note">无需在此页面输入账号或密码</span></p>
+    </section>
+  </main>
+  <footer class="site-footer"><span>© 2026 PythonIDE</span><span class="footer-context">AI OAuth callback</span></footer>
+  <script>
+    (() => {
+      const body = document.body;
+      const actions = document.getElementById('actions');
+      const button = document.getElementById('continue');
+      const eyebrow = document.getElementById('eyebrow');
+      const title = document.getElementById('title');
+      const status = document.getElementById('status');
+      const buttonLabel = document.getElementById('button-label');
+      const helper = document.getElementById('helper');
+      const trustNote = document.getElementById('trust-note');
+      const preferred = ((navigator.languages && navigator.languages[0]) || navigator.language || 'en').toLowerCase();
+      const zh = preferred.startsWith('zh');
+      const copy = zh ? {
+        returningEyebrow: '安全连接', returningTitle: '正在返回 PythonIDE', returningStatus: '正在将登录结果安全地交还给 App，这通常只需一瞬间。',
+        fallbackEyebrow: '需要继续', fallbackTitle: '继续返回 PythonIDE', fallbackStatus: '自动返回似乎没有完成。点击下方按钮即可继续，无需重新登录。',
+        button: '返回 PythonIDE', helper: '若 App 没有打开，请确认已经安装最新版 PythonIDE。', trust: '无需在此页面输入账号或密码',
+        errorEyebrow: '连接未完成', errorTitle: '无法完成返回', errorStatus: '登录响应缺少必要信息。请返回 PythonIDE 后重新连接账户。'
+      } : {
+        returningEyebrow: 'Secure connection', returningTitle: 'Returning to PythonIDE', returningStatus: 'Securely handing the sign-in result back to the app. This should only take a moment.',
+        fallbackEyebrow: 'Continue', fallbackTitle: 'Continue to PythonIDE', fallbackStatus: 'The automatic return may not have completed. Use the button below to continue without signing in again.',
+        button: 'Return to PythonIDE', helper: 'If the app does not open, make sure the latest PythonIDE is installed.', trust: 'You never need to enter an account or password on this page',
+        errorEyebrow: 'Connection incomplete', errorTitle: 'Unable to return', errorStatus: 'The sign-in response is missing required information. Return to PythonIDE and connect again.'
+      };
+      document.documentElement.lang = zh ? 'zh-CN' : 'en';
+      eyebrow.textContent = copy.returningEyebrow; title.textContent = copy.returningTitle; status.textContent = copy.returningStatus;
+      buttonLabel.textContent = copy.button; helper.textContent = copy.helper; trustNote.textContent = copy.trust;
+      const fallback = () => { body.dataset.state = 'fallback'; eyebrow.textContent = copy.fallbackEyebrow; title.textContent = copy.fallbackTitle; status.textContent = copy.fallbackStatus; actions.hidden = false; };
+      if (!window.location.search) {
+        body.dataset.state = 'error'; eyebrow.textContent = copy.errorEyebrow; title.textContent = copy.errorTitle; status.textContent = copy.errorStatus; actions.hidden = false; return;
+      }
+      const destination = `pythonide://oauth/custom-ai${window.location.search}`;
+      button.href = destination;
+      window.setTimeout(fallback, 1200);
+      try { window.location.replace(destination); } catch (_) { fallback(); }
+    })();
+  </script>
+</body>
+</html>
