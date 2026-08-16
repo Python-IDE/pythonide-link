@@ -4,6 +4,24 @@ const DEFAULT_INDEX_URL = 'https://raw.githubusercontent.com/Python-IDE/pythonid
 const DEFAULT_IMAGE = `${SITE_ORIGIN}/assets/app-icon.png`;
 const DEFAULT_TITLE = 'Python IDE 社区作品';
 const DEFAULT_DESCRIPTION = '在 Python IDE 中查看、运行和导入社区作品。';
+const AASA_DOCUMENT = {
+  applinks: {
+    details: [
+      {
+        appIDs: ['8GYAXFCC2W.app.pythonide'],
+        components: [
+          { '/': '/s/*', comment: 'Open a community script or MiniApp work.' },
+          { '/': '/community/*', comment: 'Open a Community V2 post or comment.' },
+          { '/': '/import', comment: 'Open a remote import preview.' },
+        ],
+      },
+    ],
+  },
+  webcredentials: {
+    apps: ['8GYAXFCC2W.app.pythonide'],
+  },
+};
+const AASA_JSON = JSON.stringify(AASA_DOCUMENT);
 
 const FONT = {
   ' ': ['00000','00000','00000','00000','00000','00000','00000'],
@@ -470,9 +488,22 @@ async function handleOGImage(scriptId, fetcher = fetch) {
   }
 }
 
+function handleAssociationFile(request) {
+  return new Response(request.method === 'HEAD' ? null : AASA_JSON, {
+    status: 200,
+    headers: {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Cache-Control': 'public, max-age=300, s-maxage=3600, must-revalidate',
+      'X-Content-Type-Options': 'nosniff',
+    },
+  });
+}
+
 export {
+  AASA_DOCUMENT,
   buildMetaBlock,
   encodePNG,
+  handleAssociationFile,
   handleOGImage,
   handleSharePage,
   injectInitialScriptData,
@@ -490,6 +521,9 @@ export default {
       return new Response('Method not allowed', { status: 405, headers: { Allow: 'GET, HEAD' } });
     }
     const url = new URL(request.url);
+    if (url.pathname === '/.well-known/apple-app-site-association') {
+      return handleAssociationFile(request);
+    }
     const shareMatch = /^\/s\/([^/]+)\/?$/.exec(url.pathname);
     if (shareMatch) return handleSharePage(request, decodeSegment(shareMatch[1]), env);
     const imageMatch = /^\/og\/script\/([^/]+)\.png$/.exec(url.pathname);

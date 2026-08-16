@@ -5,6 +5,10 @@
   "compatibility_date": "2026-07-01",
   "routes": [
     {
+      "pattern": "link.pythonide.xin/.well-known/apple-app-site-association",
+      "zone_name": "pythonide.xin"
+    },
+    {
       "pattern": "link.pythonide.xin/s/*",
       "zone_name": "pythonide.xin"
     },

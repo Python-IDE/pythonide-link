@@ -3,11 +3,14 @@
 This directory is the static GitHub Pages origin for:
 
 - `https://link.pythonide.xin/s/{scriptID}` community work shares
+- `https://link.pythonide.xin/community/{postID}` Community V2 post and comment shares
 - `https://link.pythonide.xin/l/{code}` reserved short links
 - `https://link.pythonide.xin/import?url=...` remote import links
 - `https://link.pythonide.xin/.well-known/apple-app-site-association` iOS Universal Links
 - `https://link.pythonide.xin/mcp-oauth/client.json` MCP OAuth Client ID Metadata Document
 - `https://link.pythonide.xin/mcp-oauth/callback` MCP OAuth HTTPS callback
+- `https://link.pythonide.xin/ai-oauth/client.json` custom AI OAuth Client ID Metadata Document
+- `https://link.pythonide.xin/ai-oauth/callback` custom AI OAuth HTTPS callback
 
 ## Repository and deployment
 
@@ -44,7 +47,10 @@ migration or community API change is required.
 Before either deployment, run:
 
 ```bash
-node --test link-site/tests/share-page.test.js link-edge/tests/worker.test.js
+node --test \
+  link-site/tests/share-page.test.js \
+  link-site/tests/aasa-deployment.test.js \
+  link-edge/tests/worker.test.js
 ```
 
 ## iOS Requirement
@@ -56,13 +62,31 @@ applinks:link.pythonide.xin
 webcredentials:link.pythonide.xin
 ```
 
-The AASA file currently registers `/s/*` and `/import`. Keep `/l/*` out of AASA until the short-link resolver backend is connected, so unfinished short links still open the web fallback instead of launching the app with no resolved target.
+The AASA file registers `/s/*`, `/community/*`, and `/import`. Keep `/l/*` out of AASA until the short-link resolver backend is connected, so unfinished short links still open the web fallback instead of launching the app with no resolved target.
 
 The AASA file must be reachable without redirects:
 
 ```text
 https://link.pythonide.xin/.well-known/apple-app-site-association
 ```
+
+The local check is network-free by default:
+
+```bash
+node link-site/scripts/check-aasa-deployment.mjs --plan
+```
+
+After Pages has deployed, create the production release attestation with an explicit live opt-in:
+
+```bash
+node link-site/scripts/check-aasa-deployment.mjs \
+  --verify-live \
+  --environment production \
+  --confirm-domain link.pythonide.xin \
+  --output /controlled-temporary-directory/aasa-attestation.json
+```
+
+The verifier requests both the no-redirect origin URL and Apple's AASA CDN, requires HTTP 200 with `application/json`, validates the app ID plus `/community/*`, and compares their semantic JSON digests with the reviewed local file. The output contains only URLs, status/content-type, timestamps, and digests. It never contains credentials. Community's production release gate rejects missing or older-than-24-hour attestations.
 
 ## MCP OAuth
 
@@ -82,3 +106,16 @@ the canonical HTTPS URL before the official MCP SDK validates state and PKCE.
 Both MCP OAuth files and the AASA file must be deployed together. Do not add
 the OAuth callback path to `applinks`; the compatibility page must remain
 loadable on iOS versions earlier than 17.4.
+
+## Custom AI OAuth
+
+Custom AI connections use a separate callback and credential namespace:
+
+```text
+Client ID:    https://link.pythonide.xin/ai-oauth/client.json
+Redirect URI: https://link.pythonide.xin/ai-oauth/callback
+```
+
+On iOS 16.2–17.3, the callback page forwards the query losslessly to
+`pythonide://oauth/custom-ai`. Keep the AI and MCP paths separate even though
+they intentionally share the same visual treatment.

@@ -15,6 +15,18 @@ test('restores only safe same-origin fallback paths', () => {
 
 test('parses every supported share route', () => {
   assert.deepEqual(core.parseRoutePath('/s/scr_abc'), { type: 'script', id: 'scr_abc', path: '/s/scr_abc' });
+  assert.deepEqual(core.parseRoutePath('/community/pst_abc'), {
+    type: 'community',
+    postID: 'pst_abc',
+    commentID: '',
+    path: '/community/pst_abc',
+  });
+  assert.deepEqual(core.parseRoutePath('/community/pst_abc?commentID=cmt_7&lang=en'), {
+    type: 'community',
+    postID: 'pst_abc',
+    commentID: 'cmt_7',
+    path: '/community/pst_abc?commentID=cmt_7',
+  });
   assert.deepEqual(core.parseRoutePath('/l/PY8K29'), { type: 'short', code: 'PY8K29', path: '/l/PY8K29' });
   assert.deepEqual(core.parseRoutePath('/import?url=https%3A%2F%2Fexample.com%2Fdemo.zip'), {
     type: 'import',
@@ -34,6 +46,11 @@ test('keeps browser and copied paths clean while preserving English links', () =
     core.routeDisplayPath(importRoute, 'en'),
     '/import?url=https%3A%2F%2Fexample.com%2Fdemo.zip&lang=en',
   );
+  const communityRoute = core.parseRoutePath('/community/pst_123?commentID=cmt_9&v=stale');
+  assert.equal(
+    core.routeDisplayPath(communityRoute, 'en'),
+    '/community/pst_123?commentID=cmt_9&lang=en',
+  );
 });
 
 test('creates encoded app deep links', () => {
@@ -45,6 +62,35 @@ test('creates encoded app deep links', () => {
     core.customURLFor({ type: 'import', remote: 'https://example.com/a b.zip' }),
     'pythonide://import?url=https%3A%2F%2Fexample.com%2Fa%20b.zip',
   );
+  assert.equal(
+    core.customURLFor({ type: 'community', postID: 'pst:1', commentID: 'cmt:2' }),
+    'pythonide://community/post/pst%3A1?commentID=cmt%3A2',
+  );
+  assert.equal(
+    core.customURLFor({ type: 'community', postID: 'pst_1', commentID: '' }),
+    'pythonide://community/post/pst_1',
+  );
+});
+
+test('Community web fallback rejects malformed or ambiguous routes', () => {
+  [
+    '/community',
+    '/community/',
+    '/Community/pst_1',
+    '/community/pst_1/',
+    '/community/pst_1/extra',
+    '/community/%2Fprivate',
+    '/community/pst%5Cprivate',
+    '/community/%20',
+    '/community/pst_1#fragment',
+    '/community/pst_1?commentID=',
+    '/community/pst_1?commentID=cmt_1%2Fprivate',
+    '/community/pst_1?commentID=cmt_1&commentID=cmt_2',
+    '/community/pst_1?lang=fr',
+    '/community/pst_1?redirect=https%3A%2F%2Fevil.example',
+  ].forEach((rawPath) => {
+    assert.deepEqual(core.parseRoutePath(rawPath), { type: 'home', path: '/' }, rawPath);
+  });
 });
 
 test('detects embedded browsers that block custom schemes', () => {
@@ -170,4 +216,17 @@ test('404 fallback and controller cooperate to restore a clean path', () => {
   const controller = fs.readFileSync(path.join(siteRoot, 'assets/share-page.js'), 'utf8');
   assert.match(fallback, /\?path=/);
   assert.match(controller, /history\.replaceState/);
+});
+
+test('AASA hands Community V2 shares to the app without claiming reserved short links', () => {
+  const siteRoot = path.resolve(__dirname, '..');
+  const association = JSON.parse(
+    fs.readFileSync(path.join(siteRoot, '.well-known/apple-app-site-association'), 'utf8'),
+  );
+  const components = association.applinks.details[0].components;
+  const paths = components.map((component) => component['/']);
+  assert.ok(paths.includes('/community/*'));
+  assert.ok(paths.includes('/s/*'));
+  assert.ok(paths.includes('/import'));
+  assert.ok(!paths.includes('/l/*'));
 });

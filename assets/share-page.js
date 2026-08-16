@@ -72,6 +72,9 @@
       previewUnavailable: '预览暂不可用',
       previewUnavailableBody: '使用下方按钮在 PythonIDE 中打开这个作品。',
       community: '社区作品',
+      communityPost: '社区帖子',
+      communityPostSummary: '在 PythonIDE 中查看完整内容、评论和互动。',
+      targetComment: '目标评论',
       remoteImport: '远程导入',
       importRemoteProject: '导入远程项目',
       missingProjectURL: '缺少项目地址',
@@ -156,6 +159,9 @@
       previewUnavailable: 'Preview unavailable',
       previewUnavailableBody: 'Use the buttons below to open this work in PythonIDE.',
       community: 'Community work',
+      communityPost: 'Community post',
+      communityPostSummary: 'View the full post, comments, and interactions in PythonIDE.',
+      targetComment: 'Target comment',
       remoteImport: 'Remote import',
       importRemoteProject: 'Import remote project',
       missingProjectURL: 'Project URL missing',
@@ -232,9 +238,48 @@
     return String(navigatorLanguage || '').toLowerCase().startsWith('zh') ? 'zh' : 'en';
   }
 
+  function normalizedCommunityIdentifier(value) {
+    const normalized = String(value || '');
+    return normalized.length <= 160 && /^[A-Za-z0-9][A-Za-z0-9._:-]*$/.test(normalized)
+      ? normalized
+      : '';
+  }
+
+  function parseCommunityRoute(url) {
+    if (url.hash) return null;
+    const pathParts = url.pathname.split('/');
+    if (pathParts.length !== 3 || pathParts[0] !== '' || pathParts[1] !== 'community') return null;
+
+    const postID = normalizedCommunityIdentifier(decodeSegment(pathParts[2]));
+    if (!postID) return null;
+
+    const allowedQueryNames = new Set(['commentID', 'lang', 'v']);
+    for (const name of url.searchParams.keys()) {
+      if (!allowedQueryNames.has(name) || url.searchParams.getAll(name).length !== 1) return null;
+    }
+    if (url.searchParams.has('lang') && !['zh', 'en'].includes(url.searchParams.get('lang'))) return null;
+
+    const rawCommentID = url.searchParams.get('commentID');
+    const commentID = rawCommentID === null ? '' : normalizedCommunityIdentifier(rawCommentID);
+    if (rawCommentID !== null && !commentID) return null;
+
+    const canonicalPath = `/community/${encodeURIComponent(postID)}`;
+    return {
+      type: 'community',
+      postID,
+      commentID,
+      path: commentID
+        ? `${canonicalPath}?commentID=${encodeURIComponent(commentID)}`
+        : canonicalPath,
+    };
+  }
+
   function parseRoutePath(value) {
     const path = safeForwardedPath(value) || '/';
     const url = new URL(path, SITE_ORIGIN);
+    if (url.pathname === '/community' || url.pathname.startsWith('/community/')) {
+      return parseCommunityRoute(url) || { type: 'home', path: '/' };
+    }
     const parts = url.pathname.split('/').filter(Boolean);
     if (parts[0] === 's' && parts[1]) {
       return { type: 'script', id: decodeSegment(parts[1]), path: url.pathname };
@@ -261,6 +306,12 @@
   }
 
   function customURLFor(route) {
+    if (route.type === 'community') {
+      const path = `pythonide://community/post/${encodeURIComponent(route.postID)}`;
+      return route.commentID
+        ? `${path}?commentID=${encodeURIComponent(route.commentID)}`
+        : path;
+    }
     if (route.type === 'script') {
       return `pythonide://community/script?id=${encodeURIComponent(route.id)}`;
     }
@@ -424,6 +475,7 @@
     formatCount,
     isProjectScript,
     normalizedTags,
+    normalizedCommunityIdentifier,
     parseRoutePath,
     previewLines,
     preferredLanguage,
@@ -932,6 +984,29 @@
     setLoading(false);
   }
 
+  function loadCommunity() {
+    currentView = 'community';
+    currentScript = null;
+    el.authorRow.hidden = true;
+    el.openApp.disabled = false;
+    setText(el.openAppLabel, tr('openApp'));
+    hideStatus();
+    setText(el.eyebrow, `PythonIDE · ${tr('community')}`);
+    setText(el.title, tr('communityPost'));
+    setText(el.summary, tr('communityPostSummary'));
+    renderGeneric(`PythonIDE · ${tr('communityPost')}`, '#');
+    renderStats([
+      { value: tr('readOnlyValue'), label: tr('preview') },
+      { value: 'App', label: tr('openMethod') },
+      { value: route.commentID ? '1' : '—', label: tr('targetComment') },
+      { value: tr('safeValue'), label: tr('linkStructure') },
+    ]);
+    setText(el.actionTitle, tr('openApp'));
+    setText(el.actionDescription, tr('communityPostSummary'));
+    updatePageMetadata(tr('communityPost'), tr('communityPostSummary'), DEFAULT_SHARE_IMAGE);
+    setLoading(false);
+  }
+
   function loadHome() {
     currentView = 'home';
     currentScript = null;
@@ -1022,6 +1097,7 @@
     if (currentView === 'script-error') renderScriptError();
     else if (currentView === 'import') loadImport();
     else if (currentView === 'short') loadShort();
+    else if (currentView === 'community') loadCommunity();
     else if (currentView === 'home') loadHome();
   }
 
@@ -1059,5 +1135,6 @@
   if (route.type === 'script') loadScript(initialScriptData(route.id));
   else if (route.type === 'import') loadImport();
   else if (route.type === 'short') loadShort();
+  else if (route.type === 'community') loadCommunity();
   else loadHome();
 }(typeof globalThis !== 'undefined' ? globalThis : this));

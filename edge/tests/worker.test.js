@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import {
+  AASA_DOCUMENT,
+  handleAssociationFile,
   handleSharePage,
   injectInitialScriptData,
   injectMetadata,
@@ -10,6 +13,31 @@ import {
   socialPayload,
   workPresentation,
 } from '../worker.js';
+
+test('serves the reviewed AASA document with the required JSON content type', async () => {
+  const reviewedDocument = JSON.parse(fs.readFileSync(
+    new URL('../../link-site/.well-known/apple-app-site-association', import.meta.url),
+    'utf8',
+  ));
+  const response = handleAssociationFile(new Request(
+    'https://link.pythonide.xin/.well-known/apple-app-site-association',
+  ));
+
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get('content-type'), /^application\/json\b/);
+  assert.deepEqual(AASA_DOCUMENT, reviewedDocument);
+  assert.deepEqual(await response.json(), reviewedDocument);
+});
+
+test('serves AASA HEAD requests without a response body', async () => {
+  const response = handleAssociationFile(new Request(
+    'https://link.pythonide.xin/.well-known/apple-app-site-association',
+    { method: 'HEAD' },
+  ));
+
+  assert.equal(response.status, 200);
+  assert.equal(await response.text(), '');
+});
 
 test('embeds safe first-paint work data into generated pages', () => {
   const template = '<script id="initial-script-data" type="application/json">{}</script>';

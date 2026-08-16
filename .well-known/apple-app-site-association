@@ -11,6 +11,10 @@
             "comment": "Open a community script or MiniApp work."
           },
           {
+            "/": "/community/*",
+            "comment": "Open a Community V2 post or comment."
+          },
+          {
             "/": "/import",
             "comment": "Open a remote import preview."
           }
