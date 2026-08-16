@@ -27,6 +27,11 @@ test('parses every supported share route', () => {
     commentID: 'cmt_7',
     path: '/community/pst_abc?commentID=cmt_7',
   });
+  assert.deepEqual(core.parseRoutePath('/community/user/usr2_abc?lang=en'), {
+    type: 'profile',
+    userID: 'usr2_abc',
+    path: '/community/user/usr2_abc',
+  });
   assert.deepEqual(core.parseRoutePath('/l/PY8K29'), { type: 'short', code: 'PY8K29', path: '/l/PY8K29' });
   assert.deepEqual(core.parseRoutePath('/import?url=https%3A%2F%2Fexample.com%2Fdemo.zip'), {
     type: 'import',
@@ -51,6 +56,11 @@ test('keeps browser and copied paths clean while preserving English links', () =
     core.routeDisplayPath(communityRoute, 'en'),
     '/community/pst_123?commentID=cmt_9&lang=en',
   );
+  const profileRoute = core.parseRoutePath('/community/user/usr2_123?v=stale');
+  assert.equal(
+    core.routeDisplayPath(profileRoute, 'en'),
+    '/community/user/usr2_123?lang=en',
+  );
 });
 
 test('creates encoded app deep links', () => {
@@ -70,6 +80,10 @@ test('creates encoded app deep links', () => {
     core.customURLFor({ type: 'community', postID: 'pst_1', commentID: '' }),
     'pythonide://community/post/pst_1',
   );
+  assert.equal(
+    core.customURLFor({ type: 'profile', userID: 'usr2:1' }),
+    'pythonide://community/user/usr2%3A1',
+  );
 });
 
 test('Community web fallback rejects malformed or ambiguous routes', () => {
@@ -88,6 +102,17 @@ test('Community web fallback rejects malformed or ambiguous routes', () => {
     '/community/pst_1?commentID=cmt_1&commentID=cmt_2',
     '/community/pst_1?lang=fr',
     '/community/pst_1?redirect=https%3A%2F%2Fevil.example',
+    '/community/user',
+    '/community/user/',
+    '/community/user/usr_1/',
+    '/community/user/usr_1/extra',
+    '/community/user/%2Fprivate',
+    '/community/user/usr%5Cprivate',
+    '/community/user/%20',
+    '/community/user/usr_1#fragment',
+    '/community/user/usr_1?commentID=cmt_1',
+    '/community/user/usr_1?lang=fr',
+    '/community/user/usr_1?lang=en&lang=zh',
   ].forEach((rawPath) => {
     assert.deepEqual(core.parseRoutePath(rawPath), { type: 'home', path: '/' }, rawPath);
   });
@@ -193,8 +218,9 @@ test('mobile share layout keeps one compact content flow with the primary action
   assert.doesNotMatch(html, /class="embedded-guide/);
   assert.doesNotMatch(html, /class="work-header/);
   assert.match(html, /id="initial-script-data" type="application\/json">\{\}<\/script>/);
+  assert.match(html, /id="initial-community-data" type="application\/json">\{\}<\/script>/);
   assert.match(html, /share-page\.css\?v=20260716-unified-work-card-2/);
-  assert.match(html, /share-page\.js\?v=20260716-unified-work-card-2/);
+  assert.match(html, /share-page\.js\?v=20260817-community-links-1/);
   assert.doesNotMatch(html, /id="projectTitle"/);
   assert.doesNotMatch(html, /id="projectDescription"/);
   assert.match(css, /min-height:\s*100svh/);

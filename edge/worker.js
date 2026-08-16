@@ -1,4 +1,5 @@
 const API_BASE = 'https://community-api-axuaystczl.cn-hangzhou.fcapp.run';
+const COMMUNITY_API_BASE = 'https://community-api.pythonide.xin/v2/community';
 const SITE_ORIGIN = 'https://link.pythonide.xin';
 const DEFAULT_INDEX_URL = 'https://raw.githubusercontent.com/Python-IDE/pythonide-link/main/index.html';
 const DEFAULT_IMAGE = `${SITE_ORIGIN}/assets/app-icon.png`;
@@ -11,7 +12,7 @@ const AASA_DOCUMENT = {
         appIDs: ['8GYAXFCC2W.app.pythonide'],
         components: [
           { '/': '/s/*', comment: 'Open a community script or MiniApp work.' },
-          { '/': '/community/*', comment: 'Open a Community V2 post or comment.' },
+          { '/': '/community/*', comment: 'Open a Community V2 post, comment, or profile.' },
           { '/': '/import', comment: 'Open a remote import preview.' },
         ],
       },
@@ -96,6 +97,45 @@ function decodeSegment(value) {
   }
 }
 
+function normalizedCommunityIdentifier(value) {
+  const normalized = String(value || '');
+  return normalized.length <= 160 && /^[A-Za-z0-9][A-Za-z0-9._:-]*$/.test(normalized)
+    ? normalized
+    : '';
+}
+
+function validCommunityQuery(url, type) {
+  const allowed = type === 'profile'
+    ? new Set(['lang'])
+    : new Set(['commentID', 'lang']);
+  const seen = new Set();
+  for (const [name, value] of url.searchParams) {
+    if (!allowed.has(name) || seen.has(name)) return false;
+    seen.add(name);
+    if (name === 'lang' && value !== 'zh' && value !== 'en') return false;
+    if (name === 'commentID' && !normalizedCommunityIdentifier(value)) return false;
+  }
+  return true;
+}
+
+function communityRoute(url) {
+  const profileMatch = /^\/community\/user\/([^/]+)$/.exec(url.pathname);
+  if (profileMatch) {
+    const userID = normalizedCommunityIdentifier(decodeSegment(profileMatch[1]));
+    return userID && validCommunityQuery(url, 'profile')
+      ? { type: 'profile', identifier: userID }
+      : null;
+  }
+  const postMatch = /^\/community\/([^/]+)$/.exec(url.pathname);
+  if (postMatch) {
+    const postID = normalizedCommunityIdentifier(decodeSegment(postMatch[1]));
+    return postID && postID !== 'user' && validCommunityQuery(url, 'community')
+      ? { type: 'community', identifier: postID }
+      : null;
+  }
+  return null;
+}
+
 function isProjectScript(script) {
   const tags = [...(script?.tags || []), ...(script?.ai_tags || [])]
     .map((value) => String(value || '').trim().toLowerCase());
@@ -150,6 +190,57 @@ function socialPayload(script, scriptId, origin = SITE_ORIGIN) {
     isGeneratedImage: !cover,
     author: String(script?.author_name || '').trim().slice(0, 60),
     programmingLanguage: presentation.language,
+    schemaType: 'SoftwareSourceCode',
+    imageAlt: `${title} · PythonIDE 作品预览`,
+  };
+}
+
+function communityRevision(value, identifier) {
+  return shareRevision({
+    updated_at: value?.updatedAt || value?.createdAt || value?.revision,
+  }, identifier);
+}
+
+function communityPostSocialPayload(post, postID, origin = SITE_ORIGIN) {
+  const description = String(
+    post?.translatedBody || post?.body || '在 PythonIDE 中查看完整内容、评论和互动。',
+  ).replace(/\s+/g, ' ').trim().slice(0, 180)
+    || '在 PythonIDE 中查看完整内容、评论和互动。';
+  const title = String(post?.translatedTitle || post?.title || 'PythonIDE 社区帖子')
+    .replace(/\s+/g, ' ').trim().slice(0, 90) || 'PythonIDE 社区帖子';
+  const author = String(post?.author?.name || '').trim().slice(0, 60);
+  return {
+    title,
+    documentTitle: `${title} · Python IDE`,
+    description,
+    url: `${origin}/community/${encodeURIComponent(postID)}`,
+    image: `${origin}/og/community/post/${encodeURIComponent(postID)}.png?v=${communityRevision(post, postID)}`,
+    isGeneratedImage: true,
+    author,
+    schemaType: 'SocialMediaPosting',
+    datePublished: post?.createdAt,
+    dateModified: post?.updatedAt,
+    imageAlt: `${title} · PythonIDE 社区帖子`,
+  };
+}
+
+function communityProfileSocialPayload(user, userID, origin = SITE_ORIGIN) {
+  const name = String(user?.name || 'PythonIDE 社区创作者').replace(/\s+/g, ' ').trim().slice(0, 90)
+    || 'PythonIDE 社区创作者';
+  const handle = String(user?.handle || '').replace(/\s+/g, ' ').trim().slice(0, 60);
+  const description = String(
+    user?.translatedBio || user?.bio || '在 PythonIDE 中查看创作者的作品、回复和社区动态。',
+  ).replace(/\s+/g, ' ').trim().slice(0, 180)
+    || '在 PythonIDE 中查看创作者的作品、回复和社区动态。';
+  return {
+    title: handle ? `${name} (@${handle})` : name,
+    documentTitle: `${name} · Python IDE`,
+    description,
+    url: `${origin}/community/user/${encodeURIComponent(userID)}`,
+    image: `${origin}/og/community/user/${encodeURIComponent(userID)}.png?v=${communityRevision(user, userID)}`,
+    isGeneratedImage: true,
+    schemaType: 'Person',
+    imageAlt: `${name} · PythonIDE 社区个人主页`,
   };
 }
 
@@ -157,32 +248,42 @@ function buildMetaBlock(meta) {
   const dimensions = meta.isGeneratedImage
     ? '<meta property="og:image:width" content="1200">\n    <meta property="og:image:height" content="630">'
     : '';
-  const jsonLD = JSON.stringify({
+  const baseStructuredData = {
     '@context': 'https://schema.org',
-    '@type': 'SoftwareSourceCode',
+    '@type': meta.schemaType || 'SoftwareSourceCode',
     name: meta.title,
     description: meta.description,
     url: meta.url,
-    author: meta.author ? { '@type': 'Person', name: meta.author } : undefined,
-    programmingLanguage: meta.programmingLanguage || 'Source code',
-    codeRepository: meta.url,
-  }).replaceAll('<', '\\u003c');
+  };
+  const jsonLD = JSON.stringify(meta.schemaType === 'Person'
+    ? baseStructuredData
+    : {
+      ...baseStructuredData,
+      author: meta.author ? { '@type': 'Person', name: meta.author } : undefined,
+      ...(meta.schemaType === 'SocialMediaPosting'
+        ? { datePublished: meta.datePublished, dateModified: meta.dateModified }
+        : {
+          programmingLanguage: meta.programmingLanguage || 'Source code',
+          codeRepository: meta.url,
+        }),
+    }).replaceAll('<', '\\u003c');
+  const imageAlt = meta.imageAlt || `${meta.title} · PythonIDE 作品预览`;
   return `<!-- edge:meta-start -->
     <meta name="description" content="${escapeHTML(meta.description)}">
-    <meta property="og:type" content="article">
+    <meta property="og:type" content="${meta.schemaType === 'Person' ? 'profile' : 'article'}">
     <meta property="og:site_name" content="Python IDE">
     <meta property="og:title" content="${escapeHTML(meta.title)}">
     <meta property="og:description" content="${escapeHTML(meta.description)}">
     <meta property="og:url" content="${escapeHTML(meta.url)}">
     <meta property="og:image" content="${escapeHTML(meta.image)}">
     <meta property="og:image:secure_url" content="${escapeHTML(meta.image)}">
-    <meta property="og:image:alt" content="${escapeHTML(`${meta.title} · PythonIDE 作品预览`)}">
+    <meta property="og:image:alt" content="${escapeHTML(imageAlt)}">
     ${dimensions}
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="${escapeHTML(meta.title)}">
     <meta name="twitter:description" content="${escapeHTML(meta.description)}">
     <meta name="twitter:image" content="${escapeHTML(meta.image)}">
-    <meta name="twitter:image:alt" content="${escapeHTML(`${meta.title} · PythonIDE 作品预览`)}">
+    <meta name="twitter:image:alt" content="${escapeHTML(imageAlt)}">
     <link rel="canonical" href="${escapeHTML(meta.url)}">
     <script type="application/ld+json">${jsonLD}</script>
     <!-- edge:meta-end -->`;
@@ -205,6 +306,17 @@ function injectInitialScriptData(html, script) {
   );
 }
 
+function injectInitialCommunityData(html, type, data) {
+  const serialized = JSON.stringify(data ? { type, data } : {})
+    .replaceAll('<', '\\u003c')
+    .replaceAll('\u2028', '\\u2028')
+    .replaceAll('\u2029', '\\u2029');
+  return html.replace(
+    /(<script\b[^>]*\bid=["']initial-community-data["'][^>]*>)[\s\S]*?(<\/script>)/i,
+    (_match, openingTag, closingTag) => `${openingTag}${serialized}${closingTag}`,
+  );
+}
+
 async function fetchScript(scriptId, fetcher = fetch) {
   const response = await fetcher(`${API_BASE}/v1/scripts/${encodeURIComponent(scriptId)}`, {
     headers: { Accept: 'application/json', 'User-Agent': 'PythonIDE-Link-Edge/1.0' },
@@ -214,6 +326,39 @@ async function fetchScript(scriptId, fetcher = fetch) {
   const payload = await response.json();
   if (!payload?.script) throw new Error('Missing script payload');
   return payload.script;
+}
+
+async function fetchCommunityPost(postID, fetcher = fetch) {
+  const response = await fetcher(
+    `${COMMUNITY_API_BASE}/posts/${encodeURIComponent(postID)}`,
+    {
+      headers: { Accept: 'application/json', 'User-Agent': 'PythonIDE-Link-Edge/2.0' },
+      cf: { cacheTtl: 60, cacheEverything: true },
+    },
+  );
+  if (!response.ok) throw new Error(`Community V2 API ${response.status}`);
+  const payload = await response.json();
+  if (!payload?.data || String(payload.data.id || '') !== postID) {
+    throw new Error('Missing Community post payload');
+  }
+  return payload.data;
+}
+
+async function fetchCommunityUser(userID, fetcher = fetch) {
+  const response = await fetcher(
+    `${COMMUNITY_API_BASE}/users/${encodeURIComponent(userID)}`,
+    {
+      headers: { Accept: 'application/json', 'User-Agent': 'PythonIDE-Link-Edge/2.0' },
+      cf: { cacheTtl: 60, cacheEverything: true },
+    },
+  );
+  if (!response.ok) throw new Error(`Community V2 API ${response.status}`);
+  const payload = await response.json();
+  const user = payload?.data?.user;
+  if (!user || String(user.id || '') !== userID) {
+    throw new Error('Missing Community profile payload');
+  }
+  return user;
 }
 
 function hex(value) {
@@ -338,7 +483,7 @@ function formatCardCount(value) {
   return String(Math.round(count));
 }
 
-function drawUnifiedArtwork(target, script, scriptId) {
+function drawUnifiedArtwork(target, script, scriptId, statsOverride = null) {
   const presentation = workPresentation(script);
   const cardX = 64;
   const cardY = 176;
@@ -378,7 +523,7 @@ function drawUnifiedArtwork(target, script, scriptId) {
   fillRoundedRect(target, cardX + 844, previewY + 46, 142, 142, 30, '#2b2c2e');
   drawTypeGlyph(target, presentation, cardX + 874, previewY + 76, 82, '#ededeb', '#2b2c2e');
 
-  const stats = [
+  const stats = statsOverride || [
     [script?.view_count, 'VIEWS'], [script?.like_count, 'LIKES'],
     [script?.run_count, 'RUNS'], [script?.download_count, 'IMPORTS'],
   ];
@@ -439,20 +584,74 @@ async function encodePNG(target) {
   ]);
 }
 
-async function renderCard(script, scriptId) {
+async function renderCard(script, scriptId, options = {}) {
   const target = canvas(1200, 630, '#f7f7f5');
   drawBrand(target);
-  drawText(target, 'PYTHONIDE COMMUNITY WORK', 68, 132, 3, '#6f6f6f', 30);
-  drawUnifiedArtwork(target, script, scriptId);
+  drawText(
+    target,
+    options.heading || 'PYTHONIDE COMMUNITY WORK',
+    68,
+    132,
+    3,
+    '#6f6f6f',
+    34,
+  );
+  drawUnifiedArtwork(target, script, scriptId, options.stats || null);
   drawText(target, 'PYTHON IDE', 74, 592, 2, '#6f6f6f', 20);
   drawText(target, 'OPEN IN APP', 952, 592, 2, '#6f6f6f', 20);
   return encodePNG(target);
 }
 
-async function handleSharePage(request, scriptId, env, fetcher = fetch) {
+async function renderCommunityCard(type, value, identifier) {
+  if (type === 'profile') {
+    const handle = String(value?.handle || '').trim();
+    return renderCard({
+      title: value?.name,
+      summary: value?.bio,
+      content: handle ? `@${handle}` : 'PythonIDE community creator',
+      category: 'other',
+      author_name: value?.name,
+    }, identifier, {
+      heading: 'PYTHONIDE COMMUNITY PROFILE',
+      stats: [
+        [value?.followerCount, 'FOLLOWERS'],
+        [value?.followingCount, 'FOLLOWING'],
+        [value?.workCount, 'WORKS'],
+        [value?.isPro ? 1 : 0, 'PRO'],
+      ],
+    });
+  }
+  return renderCard({
+    title: value?.title,
+    summary: value?.translatedBody || value?.body,
+    content: value?.translatedBody || value?.body,
+    category: value?.category || 'other',
+    author_name: value?.author?.name,
+  }, identifier, {
+    heading: 'PYTHONIDE COMMUNITY POST',
+    stats: [
+      [value?.viewCount, 'VIEWS'],
+      [value?.likeCount, 'LIKES'],
+      [value?.commentCount, 'COMMENTS'],
+      [value?.runCount, 'RUNS'],
+    ],
+  });
+}
+
+function fetchIndexPage(request, env, fetcher = fetch) {
+  if (env?.ASSETS?.fetch) {
+    const indexURL = new URL('/', request.url);
+    return env.ASSETS.fetch(new Request(indexURL, {
+      headers: { Accept: 'text/html' },
+    }));
+  }
   const indexURL = env?.STATIC_INDEX_URL || DEFAULT_INDEX_URL;
+  return fetcher(indexURL, { cf: { cacheTtl: 60, cacheEverything: true } });
+}
+
+async function handleSharePage(request, scriptId, env, fetcher = fetch) {
   const [indexResponse, scriptResult] = await Promise.all([
-    fetcher(indexURL, { cf: { cacheTtl: 60, cacheEverything: true } }),
+    fetchIndexPage(request, env, fetcher),
     fetchScript(scriptId, fetcher).catch(() => null),
   ]);
   if (!indexResponse.ok) return new Response('Share page is temporarily unavailable.', { status: 502 });
@@ -463,6 +662,37 @@ async function handleSharePage(request, scriptId, env, fetcher = fetch) {
     headers: {
       'Content-Type': 'text/html; charset=utf-8',
       'Cache-Control': 'public, max-age=60, s-maxage=180, stale-while-revalidate=600',
+      'Content-Language': 'zh-CN',
+      'X-Content-Type-Options': 'nosniff',
+      'Referrer-Policy': 'strict-origin-when-cross-origin',
+    },
+  });
+}
+
+async function handleCommunityPage(request, type, identifier, env, fetcher = fetch) {
+  const loader = type === 'profile' ? fetchCommunityUser : fetchCommunityPost;
+  const [indexResponse, dataResult] = await Promise.all([
+    fetchIndexPage(request, env, fetcher),
+    loader(identifier, fetcher).catch(() => null),
+  ]);
+  if (!indexResponse.ok) {
+    return new Response('Share page is temporarily unavailable.', { status: 502 });
+  }
+  const html = await indexResponse.text();
+  const origin = new URL(request.url).origin;
+  const meta = type === 'profile'
+    ? communityProfileSocialPayload(dataResult, identifier, origin)
+    : communityPostSocialPayload(dataResult, identifier, origin);
+  const document = injectInitialCommunityData(
+    injectMetadata(html, meta),
+    type,
+    dataResult,
+  );
+  return new Response(request.method === 'HEAD' ? null : document, {
+    status: 200,
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'public, max-age=30, s-maxage=120, stale-while-revalidate=600',
       'Content-Language': 'zh-CN',
       'X-Content-Type-Options': 'nosniff',
       'Referrer-Policy': 'strict-origin-when-cross-origin',
@@ -488,6 +718,24 @@ async function handleOGImage(scriptId, fetcher = fetch) {
   }
 }
 
+async function handleCommunityOGImage(type, identifier, fetcher = fetch) {
+  try {
+    const value = type === 'profile'
+      ? await fetchCommunityUser(identifier, fetcher)
+      : await fetchCommunityPost(identifier, fetcher);
+    const png = await renderCommunityCard(type, value, identifier);
+    return new Response(png, {
+      headers: {
+        'Content-Type': 'image/png',
+        'Cache-Control': 'public, max-age=300, s-maxage=1800, stale-while-revalidate=86400',
+        'X-Content-Type-Options': 'nosniff',
+      },
+    });
+  } catch {
+    return Response.redirect(DEFAULT_IMAGE, 302);
+  }
+}
+
 function handleAssociationFile(request) {
   return new Response(request.method === 'HEAD' ? null : AASA_JSON, {
     status: 200,
@@ -499,16 +747,62 @@ function handleAssociationFile(request) {
   });
 }
 
+async function handleRequest(request, env, fetcher = fetch) {
+  if (request.method !== 'GET' && request.method !== 'HEAD') {
+    return new Response('Method not allowed', { status: 405, headers: { Allow: 'GET, HEAD' } });
+  }
+  const url = new URL(request.url);
+  if (url.pathname === '/.well-known/apple-app-site-association') {
+    return handleAssociationFile(request);
+  }
+  if (url.pathname === '/community' || url.pathname.startsWith('/community/')) {
+    const destination = communityRoute(url);
+    if (!destination) return new Response('Not found', { status: 404 });
+    return handleCommunityPage(
+      request,
+      destination.type,
+      destination.identifier,
+      env,
+      fetcher,
+    );
+  }
+  const shareMatch = /^\/s\/([^/]+)\/?$/.exec(url.pathname);
+  if (shareMatch) return handleSharePage(request, decodeSegment(shareMatch[1]), env, fetcher);
+  const communityImageMatch = /^\/og\/community\/(post|user)\/([^/]+)\.png$/.exec(url.pathname);
+  if (communityImageMatch) {
+    const identifier = normalizedCommunityIdentifier(decodeSegment(communityImageMatch[2]));
+    if (!identifier) return new Response('Not found', { status: 404 });
+    return handleCommunityOGImage(
+      communityImageMatch[1] === 'user' ? 'profile' : 'community',
+      identifier,
+      fetcher,
+    );
+  }
+  const imageMatch = /^\/og\/script\/([^/]+)\.png$/.exec(url.pathname);
+  if (imageMatch) return handleOGImage(decodeSegment(imageMatch[1]), fetcher);
+  if (env?.ASSETS?.fetch) return env.ASSETS.fetch(request);
+  return new Response('Not found', { status: 404 });
+}
+
 export {
   AASA_DOCUMENT,
   buildMetaBlock,
+  communityRoute,
+  communityPostSocialPayload,
+  communityProfileSocialPayload,
   encodePNG,
   handleAssociationFile,
+  handleCommunityOGImage,
+  handleCommunityPage,
   handleOGImage,
+  handleRequest,
   handleSharePage,
+  injectInitialCommunityData,
   injectInitialScriptData,
   injectMetadata,
+  normalizedCommunityIdentifier,
   renderCard,
+  renderCommunityCard,
   safeHTTPSURL,
   shareRevision,
   socialPayload,
@@ -517,17 +811,6 @@ export {
 
 export default {
   async fetch(request, env) {
-    if (request.method !== 'GET' && request.method !== 'HEAD') {
-      return new Response('Method not allowed', { status: 405, headers: { Allow: 'GET, HEAD' } });
-    }
-    const url = new URL(request.url);
-    if (url.pathname === '/.well-known/apple-app-site-association') {
-      return handleAssociationFile(request);
-    }
-    const shareMatch = /^\/s\/([^/]+)\/?$/.exec(url.pathname);
-    if (shareMatch) return handleSharePage(request, decodeSegment(shareMatch[1]), env);
-    const imageMatch = /^\/og\/script\/([^/]+)\.png$/.exec(url.pathname);
-    if (imageMatch) return handleOGImage(decodeSegment(imageMatch[1]));
-    return new Response('Not found', { status: 404 });
+    return handleRequest(request, env);
   },
 };

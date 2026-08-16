@@ -2,6 +2,7 @@
   'use strict';
 
   const API_BASE = 'https://community-api-axuaystczl.cn-hangzhou.fcapp.run';
+  const COMMUNITY_API_BASE = 'https://community-api.pythonide.xin/v2/community';
   const APP_STORE_URL = 'https://apps.apple.com/app/id6753987304';
   const SITE_ORIGIN = 'https://link.pythonide.xin';
   const DEFAULT_TITLE = 'Python IDE 社区作品';
@@ -74,7 +75,13 @@
       community: '社区作品',
       communityPost: '社区帖子',
       communityPostSummary: '在 PythonIDE 中查看完整内容、评论和互动。',
+      communityProfile: '社区个人主页',
+      communityProfileSummary: '在 PythonIDE 中查看创作者的作品、回复和社区动态。',
       targetComment: '目标评论',
+      comments: '评论',
+      followers: '粉丝',
+      following: '关注',
+      works: '作品',
       remoteImport: '远程导入',
       importRemoteProject: '导入远程项目',
       missingProjectURL: '缺少项目地址',
@@ -161,7 +168,13 @@
       community: 'Community work',
       communityPost: 'Community post',
       communityPostSummary: 'View the full post, comments, and interactions in PythonIDE.',
+      communityProfile: 'Community profile',
+      communityProfileSummary: 'View this creator’s work, replies, and community activity in PythonIDE.',
       targetComment: 'Target comment',
+      comments: 'Comments',
+      followers: 'Followers',
+      following: 'Following',
+      works: 'Works',
       remoteImport: 'Remote import',
       importRemoteProject: 'Import remote project',
       missingProjectURL: 'Project URL missing',
@@ -248,7 +261,26 @@
   function parseCommunityRoute(url) {
     if (url.hash) return null;
     const pathParts = url.pathname.split('/');
-    if (pathParts.length !== 3 || pathParts[0] !== '' || pathParts[1] !== 'community') return null;
+    if (pathParts[0] !== '' || pathParts[1] !== 'community') return null;
+
+    if (pathParts.length === 4 && pathParts[2] === 'user') {
+      const userID = normalizedCommunityIdentifier(decodeSegment(pathParts[3]));
+      if (!userID) return null;
+
+      const allowedQueryNames = new Set(['lang', 'v']);
+      for (const name of url.searchParams.keys()) {
+        if (!allowedQueryNames.has(name) || url.searchParams.getAll(name).length !== 1) return null;
+      }
+      if (url.searchParams.has('lang') && !['zh', 'en'].includes(url.searchParams.get('lang'))) return null;
+
+      return {
+        type: 'profile',
+        userID,
+        path: `/community/user/${encodeURIComponent(userID)}`,
+      };
+    }
+
+    if (pathParts.length !== 3 || pathParts[2] === 'user') return null;
 
     const postID = normalizedCommunityIdentifier(decodeSegment(pathParts[2]));
     if (!postID) return null;
@@ -306,6 +338,9 @@
   }
 
   function customURLFor(route) {
+    if (route.type === 'profile') {
+      return `pythonide://community/user/${encodeURIComponent(route.userID)}`;
+    }
     if (route.type === 'community') {
       const path = `pythonide://community/post/${encodeURIComponent(route.postID)}`;
       return route.commentID
@@ -534,6 +569,8 @@
   let toastTimer = null;
   let launchTimer = null;
   let currentScript = null;
+  let currentCommunityPost = null;
+  let currentProfile = null;
   let currentView = route.type;
 
   function setLoading(isLoading) {
@@ -783,6 +820,46 @@
     }
   }
 
+  function communityAvatarURL(user) {
+    const explicitAvatar = safeImageURL(
+      user?.avatarURL || user?.avatarUrl || user?.avatar_url || user?.imageURL,
+    );
+    const avatarSeed = String(user?.avatarSeed || user?.avatarID || '').trim();
+    return explicitAvatar || (avatarSeed
+      ? `https://api.dicebear.com/9.x/adventurer/png?seed=${encodeURIComponent(avatarSeed)}&size=160`
+      : '');
+  }
+
+  function renderCommunityAuthor(user, timestamp = '') {
+    const fallbackAuthor = language === 'en' ? 'Community creator' : '社区创作者';
+    const author = String(user?.name || fallbackAuthor).trim() || fallbackAuthor;
+    const handle = String(user?.handle || '').trim();
+    const date = formatDate(timestamp);
+    const detail = [handle ? `@${handle}` : '', date].filter(Boolean).join(' · ')
+      || fallbackAuthor;
+
+    setText(el.authorName, author);
+    setText(el.authorDetail, detail);
+    setText(el.authorInitial, Array.from(author)[0] || 'P');
+    el.authorRow.hidden = false;
+    el.authorAvatar.hidden = true;
+    el.authorInitial.hidden = false;
+
+    const avatarURL = communityAvatarURL(user);
+    if (avatarURL) {
+      el.authorAvatar.onload = () => {
+        el.authorAvatar.hidden = false;
+        el.authorInitial.hidden = true;
+      };
+      el.authorAvatar.onerror = () => {
+        el.authorAvatar.hidden = true;
+        el.authorInitial.hidden = false;
+      };
+      el.authorAvatar.src = avatarURL;
+      el.authorAvatar.alt = language === 'en' ? `${author}'s avatar` : `${author}的头像`;
+    }
+  }
+
   function renderProject(script, presentation) {
     const facts = [
       script.entry_file ? `${language === 'en' ? 'Entry' : '入口'} ${script.entry_file}` : '',
@@ -915,6 +992,19 @@
     }
   }
 
+  function initialCommunityData(type, identifier) {
+    const node = document.getElementById('initial-community-data');
+    if (!node) return null;
+    try {
+      const payload = JSON.parse(node.textContent || '{}');
+      if (payload?.type !== type || !payload?.data) return null;
+      const value = payload.data;
+      return String(value.id || '') === String(identifier || '') ? value : null;
+    } catch {
+      return null;
+    }
+  }
+
   async function loadScript(initialScript = null) {
     currentView = 'script-loading';
     hideStatus();
@@ -984,27 +1074,172 @@
     setLoading(false);
   }
 
-  function loadCommunity() {
+  function communityPostDescription(post) {
+    return String(post?.translatedBody || post?.body || tr('communityPostSummary'))
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 280) || tr('communityPostSummary');
+  }
+
+  function renderCommunityPost(post) {
     currentView = 'community';
     currentScript = null;
+    currentProfile = null;
+    currentCommunityPost = post;
+    el.openApp.disabled = false;
+    hideStatus();
+    setText(el.openAppLabel, tr('openApp'));
+
+    const description = communityPostDescription(post);
+    const title = String(post?.translatedTitle || post?.title || description || tr('communityPost'))
+      .trim()
+      .slice(0, 120) || tr('communityPost');
+    setText(el.eyebrow, `PythonIDE · ${tr('communityPost')}`);
+    setText(el.title, title);
+    setText(el.summary, description);
+    renderCommunityAuthor(post?.author, post?.updatedAt || post?.createdAt);
+    renderGeneric(`PythonIDE · ${tr('communityPost')}`, '#');
+
+    const locale = language === 'en' ? 'en-US' : 'zh-CN';
+    renderStats([
+      { value: formatCount(post?.likeCount, locale), label: tr('likes') },
+      { value: formatCount(post?.commentCount, locale), label: tr('comments') },
+      { value: formatCount(post?.runCount, locale), label: tr('runs') },
+      { value: formatCount(post?.viewCount, locale), label: tr('views') },
+    ]);
+    setText(el.actionTitle, tr('openApp'));
+    setText(el.actionDescription, tr('communityPostSummary'));
+    updatePageMetadata(title, description, DEFAULT_SHARE_IMAGE);
+    setLoading(false);
+  }
+
+  function renderCommunityPostError() {
+    currentView = 'community-error';
+    currentCommunityPost = null;
+    currentProfile = null;
     el.authorRow.hidden = true;
     el.openApp.disabled = false;
     setText(el.openAppLabel, tr('openApp'));
-    hideStatus();
     setText(el.eyebrow, `PythonIDE · ${tr('community')}`);
     setText(el.title, tr('communityPost'));
     setText(el.summary, tr('communityPostSummary'));
     renderGeneric(`PythonIDE · ${tr('communityPost')}`, '#');
     renderStats([
-      { value: tr('readOnlyValue'), label: tr('preview') },
-      { value: 'App', label: tr('openMethod') },
-      { value: route.commentID ? '1' : '—', label: tr('targetComment') },
-      { value: tr('safeValue'), label: tr('linkStructure') },
+      { value: '—', label: tr('likes') }, { value: '—', label: tr('comments') },
+      { value: '—', label: tr('runs') }, { value: '—', label: tr('views') },
+    ]);
+    updatePageMetadata(tr('communityPost'), tr('communityPostSummary'), DEFAULT_SHARE_IMAGE);
+    showStatus(tr('statusUnavailable'), tr('statusUnavailableBody'), true);
+    setLoading(false);
+  }
+
+  async function loadCommunity(initialPost = null) {
+    currentView = 'community-loading';
+    hideStatus();
+    const hasInitialPost = Boolean(initialPost);
+    if (hasInitialPost) renderCommunityPost(initialPost);
+    else setLoading(true);
+    retryAction = () => loadCommunity(initialPost);
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20000);
+    try {
+      const response = await fetch(
+        `${COMMUNITY_API_BASE}/posts/${encodeURIComponent(route.postID)}`,
+        { headers: { Accept: 'application/json' }, signal: controller.signal },
+      );
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const payload = await response.json();
+      const post = payload?.data;
+      if (!post || String(post.id || '') !== route.postID) throw new Error('Missing post');
+      renderCommunityPost(post);
+    } catch {
+      if (!hasInitialPost) renderCommunityPostError();
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  function renderProfile(user) {
+    currentView = 'profile';
+    currentScript = null;
+    currentCommunityPost = null;
+    currentProfile = user;
+    el.openApp.disabled = false;
+    hideStatus();
+    setText(el.openAppLabel, tr('openApp'));
+
+    const fallbackName = tr('communityProfile');
+    const name = String(user?.name || fallbackName).trim().slice(0, 120) || fallbackName;
+    const handle = String(user?.handle || '').trim();
+    const description = String(user?.translatedBio || user?.bio || tr('communityProfileSummary'))
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 280) || tr('communityProfileSummary');
+    setText(el.eyebrow, `PythonIDE · ${tr('communityProfile')}`);
+    setText(el.title, name);
+    setText(el.summary, description);
+    renderCommunityAuthor(user, user?.updatedAt || user?.createdAt);
+    renderGeneric(`PythonIDE · ${tr('communityProfile')}`, '@');
+
+    const locale = language === 'en' ? 'en-US' : 'zh-CN';
+    renderStats([
+      { value: formatCount(user?.followerCount, locale), label: tr('followers') },
+      { value: formatCount(user?.followingCount, locale), label: tr('following') },
+      { value: formatCount(user?.workCount, locale), label: tr('works') },
+      { value: user?.isPro ? 'PRO' : '—', label: handle ? `@${handle}` : tr('community') },
     ]);
     setText(el.actionTitle, tr('openApp'));
-    setText(el.actionDescription, tr('communityPostSummary'));
-    updatePageMetadata(tr('communityPost'), tr('communityPostSummary'), DEFAULT_SHARE_IMAGE);
+    setText(el.actionDescription, tr('communityProfileSummary'));
+    updatePageMetadata(name, description, communityAvatarURL(user) || DEFAULT_SHARE_IMAGE);
     setLoading(false);
+  }
+
+  function renderProfileError() {
+    currentView = 'profile-error';
+    currentProfile = null;
+    currentCommunityPost = null;
+    el.authorRow.hidden = true;
+    el.openApp.disabled = false;
+    setText(el.openAppLabel, tr('openApp'));
+    setText(el.eyebrow, `PythonIDE · ${tr('community')}`);
+    setText(el.title, tr('communityProfile'));
+    setText(el.summary, tr('communityProfileSummary'));
+    renderGeneric(`PythonIDE · ${tr('communityProfile')}`, '@');
+    renderStats([
+      { value: '—', label: tr('followers') }, { value: '—', label: tr('following') },
+      { value: '—', label: tr('works') }, { value: '—', label: tr('community') },
+    ]);
+    updatePageMetadata(tr('communityProfile'), tr('communityProfileSummary'), DEFAULT_SHARE_IMAGE);
+    showStatus(tr('statusUnavailable'), tr('statusUnavailableBody'), true);
+    setLoading(false);
+  }
+
+  async function loadProfile(initialProfile = null) {
+    currentView = 'profile-loading';
+    hideStatus();
+    const hasInitialProfile = Boolean(initialProfile);
+    if (hasInitialProfile) renderProfile(initialProfile);
+    else setLoading(true);
+    retryAction = () => loadProfile(initialProfile);
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20000);
+    try {
+      const response = await fetch(
+        `${COMMUNITY_API_BASE}/users/${encodeURIComponent(route.userID)}`,
+        { headers: { Accept: 'application/json' }, signal: controller.signal },
+      );
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const payload = await response.json();
+      const user = payload?.data?.user;
+      if (!user || String(user.id || '') !== route.userID) throw new Error('Missing user');
+      renderProfile(user);
+    } catch {
+      if (!hasInitialProfile) renderProfileError();
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 
   function loadHome() {
@@ -1097,7 +1332,11 @@
     if (currentView === 'script-error') renderScriptError();
     else if (currentView === 'import') loadImport();
     else if (currentView === 'short') loadShort();
-    else if (currentView === 'community') loadCommunity();
+    else if (currentView === 'community' && currentCommunityPost) {
+      renderCommunityPost(currentCommunityPost);
+    } else if (currentView === 'community-error') renderCommunityPostError();
+    else if (currentView === 'profile' && currentProfile) renderProfile(currentProfile);
+    else if (currentView === 'profile-error') renderProfileError();
     else if (currentView === 'home') loadHome();
   }
 
@@ -1135,6 +1374,10 @@
   if (route.type === 'script') loadScript(initialScriptData(route.id));
   else if (route.type === 'import') loadImport();
   else if (route.type === 'short') loadShort();
-  else if (route.type === 'community') loadCommunity();
+  else if (route.type === 'community') {
+    loadCommunity(initialCommunityData('community', route.postID));
+  } else if (route.type === 'profile') {
+    loadProfile(initialCommunityData('profile', route.userID));
+  }
   else loadHome();
 }(typeof globalThis !== 'undefined' ? globalThis : this));

@@ -3,11 +3,18 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {
   AASA_DOCUMENT,
+  communityRoute,
+  communityPostSocialPayload,
+  communityProfileSocialPayload,
   handleAssociationFile,
+  handleCommunityPage,
   handleSharePage,
+  handleRequest,
+  injectInitialCommunityData,
   injectInitialScriptData,
   injectMetadata,
   renderCard,
+  renderCommunityCard,
   safeHTTPSURL,
   shareRevision,
   socialPayload,
@@ -46,6 +53,170 @@ test('embeds safe first-paint work data into generated pages', () => {
   assert.match(html, /"title":"\$1\\u003c\/script>/);
   assert.doesNotMatch(html, /<b>unsafe<\/b>/);
   assert.match(html, /\\u003c\/script>/);
+});
+
+test('embeds typed Community data without allowing script-tag injection', () => {
+  const template = '<script id="initial-community-data" type="application/json">{}</script>';
+  const html = injectInitialCommunityData(template, 'profile', {
+    id: 'usr2_1',
+    name: '</script><b>unsafe</b>',
+  });
+  assert.match(html, /"type":"profile"/);
+  assert.match(html, /"id":"usr2_1"/);
+  assert.doesNotMatch(html, /<b>unsafe<\/b>/);
+  assert.match(html, /\\u003c\/script>/);
+});
+
+const communityPost = {
+  id: 'pst_123',
+  title: '分享测试 <帖子>',
+  body: '帖子正文与说明',
+  category: 'all',
+  author: { id: 'usr2_1', name: '创作者', handle: 'maker' },
+  likeCount: 8,
+  commentCount: 3,
+  runCount: 2,
+  viewCount: 21,
+  createdAt: '2026-08-17T00:00:00Z',
+  updatedAt: '2026-08-17T01:00:00Z',
+};
+
+const communityUser = {
+  id: 'usr2_1',
+  name: '创作者',
+  handle: 'maker',
+  bio: '分享 PythonIDE 作品',
+  followerCount: 12,
+  followingCount: 4,
+  workCount: 7,
+  isPro: true,
+  updatedAt: '2026-08-17T01:00:00Z',
+};
+
+test('builds canonical Community post and stable user-ID profile metadata', () => {
+  const postMeta = communityPostSocialPayload(communityPost, communityPost.id);
+  assert.equal(postMeta.url, 'https://link.pythonide.xin/community/pst_123');
+  assert.equal(postMeta.title, '分享测试 <帖子>');
+  assert.match(postMeta.image, /\/og\/community\/post\/pst_123\.png\?v=/);
+  assert.equal(postMeta.schemaType, 'SocialMediaPosting');
+
+  const profileMeta = communityProfileSocialPayload(communityUser, communityUser.id);
+  assert.equal(profileMeta.url, 'https://link.pythonide.xin/community/user/usr2_1');
+  assert.equal(profileMeta.title, '创作者 (@maker)');
+  assert.match(profileMeta.image, /\/og\/community\/user\/usr2_1\.png\?v=/);
+  assert.equal(profileMeta.schemaType, 'Person');
+});
+
+test('accepts only canonical Community post and profile edge routes', () => {
+  assert.deepEqual(
+    communityRoute(new URL('https://link.pythonide.xin/community/pst_1?commentID=cmt_1&lang=en')),
+    { type: 'community', identifier: 'pst_1' },
+  );
+  assert.deepEqual(
+    communityRoute(new URL('https://link.pythonide.xin/community/user/usr2_1?lang=zh')),
+    { type: 'profile', identifier: 'usr2_1' },
+  );
+  [
+    '/community',
+    '/community/',
+    '/community/user',
+    '/community/user/',
+    '/community/user/usr2_1/',
+    '/community/user/%2Fprivate',
+    '/community/user/usr2_1?commentID=cmt_1',
+    '/community/pst_1/',
+    '/community/%2Fprivate',
+    '/community/pst_1?commentID=',
+    '/community/pst_1?lang=fr',
+    '/community/pst_1?redirect=https%3A%2F%2Fevil.example',
+  ].forEach((path) => {
+    assert.equal(communityRoute(new URL(path, 'https://link.pythonide.xin')), null, path);
+  });
+});
+
+test('server-renders Community post metadata and first-paint payload', async () => {
+  const staticHTML = '<html><head><!-- edge:meta-start --><meta name="description" content="old"><!-- edge:meta-end --><title>Old</title><script id="initial-community-data" type="application/json">{}</script></head><body>Share page</body></html>';
+  const fetcher = async (url) => {
+    if (String(url).includes('/v2/community/posts/')) {
+      return new Response(JSON.stringify({ data: communityPost }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    return new Response(staticHTML, { status: 200, headers: { 'Content-Type': 'text/html' } });
+  };
+  const response = await handleCommunityPage(
+    new Request('https://link.pythonide.xin/community/pst_123'),
+    'community',
+    'pst_123',
+    { STATIC_INDEX_URL: 'https://static.example/index.html' },
+    fetcher,
+  );
+  const html = await response.text();
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get('content-type'), /text\/html/);
+  assert.match(html, /分享测试 &lt;帖子&gt;/);
+  assert.match(html, /"type":"community"/);
+  assert.match(html, /"id":"pst_123"/);
+  assert.match(html, /SocialMediaPosting/);
+});
+
+test('server-renders stable profile metadata and first-paint payload', async () => {
+  const staticHTML = '<html><head><!-- edge:meta-start --><meta name="description" content="old"><!-- edge:meta-end --><title>Old</title><script id="initial-community-data" type="application/json">{}</script></head></html>';
+  const fetcher = async (url) => {
+    if (String(url).includes('/v2/community/users/')) {
+      return new Response(JSON.stringify({ data: { user: communityUser } }), { status: 200 });
+    }
+    return new Response(staticHTML, { status: 200 });
+  };
+  const response = await handleCommunityPage(
+    new Request('https://link.pythonide.xin/community/user/usr2_1'),
+    'profile',
+    'usr2_1',
+    { STATIC_INDEX_URL: 'https://static.example/index.html' },
+    fetcher,
+  );
+  const html = await response.text();
+  assert.match(html, /property="og:type" content="profile"/);
+  assert.match(html, /https:\/\/link\.pythonide\.xin\/community\/user\/usr2_1/);
+  assert.match(html, /"type":"profile"/);
+  assert.match(html, /"id":"usr2_1"/);
+});
+
+test('uses Pages assets for the share template and forwards static routes', async () => {
+  const staticHTML = '<html><head><!-- edge:meta-start --><!-- edge:meta-end --><title>Old</title><script id="initial-community-data" type="application/json">{}</script></head></html>';
+  const assetRequests = [];
+  const env = {
+    ASSETS: {
+      async fetch(request) {
+        assetRequests.push(new URL(request.url).pathname);
+        if (new URL(request.url).pathname === '/') return new Response(staticHTML, { status: 200 });
+        return new Response('static asset', { status: 200 });
+      },
+    },
+  };
+  const fetcher = async (url) => {
+    if (String(url).includes('/v2/community/posts/')) {
+      return new Response(JSON.stringify({ data: communityPost }), { status: 200 });
+    }
+    throw new Error(`Unexpected network request: ${url}`);
+  };
+
+  const dynamicResponse = await handleRequest(
+    new Request('https://link.pythonide.xin/community/pst_123'),
+    env,
+    fetcher,
+  );
+  assert.equal(dynamicResponse.status, 200);
+  assert.match(await dynamicResponse.text(), /"id":"pst_123"/);
+
+  const staticResponse = await handleRequest(
+    new Request('https://link.pythonide.xin/mcp-oauth/callback/'),
+    env,
+    fetcher,
+  );
+  assert.equal(await staticResponse.text(), 'static asset');
+  assert.deepEqual(assetRequests, ['/', '/mcp-oauth/callback/']);
 });
 
 const script = {
@@ -113,6 +284,19 @@ test('renders a valid 1200 by 630 PNG social card', async () => {
   assert.equal(view.getUint32(16), 1200);
   assert.equal(view.getUint32(20), 630);
   assert.ok(bytes.byteLength > 10000);
+});
+
+test('renders valid post and profile social cards without storing public records', async () => {
+  for (const [type, value, identifier] of [
+    ['community', communityPost, communityPost.id],
+    ['profile', communityUser, communityUser.id],
+  ]) {
+    const bytes = await renderCommunityCard(type, value, identifier);
+    assert.deepEqual(Array.from(bytes.slice(0, 8)), [137, 80, 78, 71, 13, 10, 26, 10]);
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    assert.equal(view.getUint32(16), 1200);
+    assert.equal(view.getUint32(20), 630);
+  }
 });
 
 test('server-renders metadata and first-paint data before a client receives the page', async () => {

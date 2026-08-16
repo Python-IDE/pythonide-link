@@ -12,7 +12,7 @@
           },
           {
             "/": "/community/*",
-            "comment": "Open a Community V2 post or comment."
+            "comment": "Open a Community V2 post, comment, or profile."
           },
           {
             "/": "/import",

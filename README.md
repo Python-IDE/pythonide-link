@@ -4,6 +4,7 @@ This directory is the static GitHub Pages origin for:
 
 - `https://link.pythonide.xin/s/{scriptID}` community work shares
 - `https://link.pythonide.xin/community/{postID}` Community V2 post and comment shares
+- `https://link.pythonide.xin/community/user/{userID}` stable Community V2 creator profiles
 - `https://link.pythonide.xin/l/{code}` reserved short links
 - `https://link.pythonide.xin/import?url=...` remote import links
 - `https://link.pythonide.xin/.well-known/apple-app-site-association` iOS Universal Links
@@ -62,7 +63,11 @@ applinks:link.pythonide.xin
 webcredentials:link.pythonide.xin
 ```
 
-The AASA file registers `/s/*`, `/community/*`, and `/import`. Keep `/l/*` out of AASA until the short-link resolver backend is connected, so unfinished short links still open the web fallback instead of launching the app with no resolved target.
+The AASA file registers `/s/*`, `/community/*`, and `/import`. The
+`/community/*` contract includes both posts and stable user-ID profile links.
+Keep `/l/*` out of AASA until the short-link resolver backend is connected, so
+unfinished short links still open the web fallback instead of launching the app
+with no resolved target.
 
 The AASA file must be reachable without redirects:
 
