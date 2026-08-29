@@ -7,7 +7,10 @@ on:
       - "s/**"
       - "og/**"
   schedule:
-    - cron: "*/5 * * * *"
+    # Dynamic edge rendering is immediate. This job only refreshes the static
+    # fallback and intentionally shares the Community recovery cadence instead
+    # of waking TableStore every five minutes.
+    - cron: "17 */6 * * *"
   workflow_dispatch:
 
 permissions:

@@ -1,7 +1,6 @@
 (function (global) {
   'use strict';
 
-  const API_BASE = 'https://community-api-axuaystczl.cn-hangzhou.fcapp.run';
   const COMMUNITY_API_BASE = 'https://community-api.pythonide.xin/v2/community';
   const APP_STORE_URL = 'https://apps.apple.com/app/id6753987304';
   const SITE_ORIGIN = 'https://link.pythonide.xin';
@@ -11,12 +10,14 @@
 
   const CATEGORY_LABELS = {
     python: 'Python',
+    games: '游戏',
     miniapp: 'MiniApp',
     appui: 'AppUI',
     html: 'HTML',
     scene: 'Scene',
     pygame: 'Pygame',
     widget: 'Widget',
+    markdown: 'Markdown',
     other: '社区作品',
   };
 
@@ -409,9 +410,11 @@
   }
 
   function filePresentation(script) {
-    const fileType = String(script.file_type || '').trim().replace(/^\./, '').toLowerCase();
+    const fileName = String(script.fileName || '').trim();
+    const fileType = String(script.fileType || script.file_type || fileName.split('.').pop() || '')
+      .trim().replace(/^\./, '').toLowerCase();
     const category = String(script.category || 'other').trim().toLowerCase();
-    const runtime = String(script.runtime || '').trim();
+    const runtime = String(script.runtimeKind || script.runtime || '').trim();
     return {
       badge: FILE_LABELS[fileType] || FILE_LABELS[category] || String(fileType || category || 'CODE').slice(0, 4).toUpperCase(),
       categoryLabel: CATEGORY_LABELS[category] || category || '社区作品',
@@ -421,10 +424,11 @@
   }
 
   function isProjectScript(script) {
-    const contentMode = String(script.content_mode || '').toLowerCase();
+    const contentMode = String(script.contentMode || script.content_mode || '').toLowerCase();
     const tags = normalizedTags(script).map((value) => value.toLowerCase());
     return contentMode === 'project_package'
-      || Boolean(script.package_id)
+      || String(script.attachmentKind || '').toLowerCase() === 'project'
+      || Boolean(script.packageID || script.package_id)
       || tags.includes('project')
       || tags.includes('project_package')
       || tags.includes('community_content_mode:project_package');
@@ -433,10 +437,12 @@
   function typePresentation(script, languageValue = 'zh') {
     const locale = languageValue === 'en' ? 'en' : 'zh';
     const category = String(script.category || '').trim().toLowerCase();
-    const fileType = String(script.file_type || '').trim().replace(/^\./, '').toLowerCase();
+    const fileName = String(script.fileName || '').trim();
+    const fileType = String(script.fileType || script.file_type || fileName.split('.').pop() || '')
+      .trim().replace(/^\./, '').toLowerCase();
     const tags = normalizedTags(script).map((value) => value.toLowerCase());
     const taggedRuntime = tags.find((value) => value.startsWith('community_runtime:'))?.split(':').slice(1).join(':') || '';
-    const runtime = String(script.runtime || taggedRuntime).trim().toLowerCase();
+    const runtime = String(script.runtimeKind || script.runtime || taggedRuntime).trim().toLowerCase();
     const project = isProjectScript(script);
     const format = project
       ? (locale === 'en' ? 'project' : '项目')
@@ -474,7 +480,8 @@
 
   function shareRevision(script, scriptID = '') {
     const source = String(
-      script?.content_hash || script?.updated_at || script?.approved_at || script?.version || scriptID || 'preview',
+      script?.revision || script?.updatedAt || script?.content_hash || script?.updated_at
+        || script?.approved_at || script?.version || scriptID || 'preview',
     );
     let hash = 2166136261;
     for (const character of source) {
@@ -485,13 +492,16 @@
   }
 
   function shareImageURL(script, scriptID) {
-    const cover = safeImageURL(script?.cover_image_url || script?.preview_image_url || script?.thumbnail_url);
+    const cover = safeImageURL(
+      script?.coverURL || script?.cover_image_url || script?.preview_image_url || script?.thumbnail_url,
+    );
     if (cover) return cover;
     return `${SITE_ORIGIN}/og/script/${encodeURIComponent(scriptID)}.png?v=${shareRevision(script, scriptID)}`;
   }
 
   function socialDescription(script) {
-    return String(script.ai_summary || script.summary || DEFAULT_DESCRIPTION).trim().slice(0, 150) || DEFAULT_DESCRIPTION;
+    return String(script.ai_summary || script.summary || script.body || DEFAULT_DESCRIPTION)
+      .trim().slice(0, 150) || DEFAULT_DESCRIPTION;
   }
 
   function hostnameFor(value) {
@@ -792,8 +802,9 @@
 
   function renderAuthor(script) {
     const fallbackAuthor = language === 'en' ? 'Community creator' : '社区创作者';
-    const author = String(script.author_name || fallbackAuthor).trim() || fallbackAuthor;
-    const date = formatDate(script.updated_at || script.approved_at || script.created_at);
+    const author = String(script.author?.name || script.authorName || script.author_name || fallbackAuthor)
+      .trim() || fallbackAuthor;
+    const date = formatDate(script.updatedAt || script.updated_at || script.approved_at || script.createdAt || script.created_at);
     setText(el.authorName, author);
     setText(el.authorDetail, tr('updated')(date));
     setText(el.authorInitial, Array.from(author)[0] || 'P');
@@ -801,8 +812,10 @@
     el.authorAvatar.hidden = true;
     el.authorInitial.hidden = false;
 
-    const avatarID = String(script.author_avatar_id || '').trim();
-    const explicitAvatar = safeImageURL(script.author_avatar_url || script.avatar_url || script.user_avatar_url);
+    const avatarID = String(script.author?.avatarSeed || script.author_avatar_id || '').trim();
+    const explicitAvatar = safeImageURL(
+      script.author?.avatarURL || script.author_avatar_url || script.avatar_url || script.user_avatar_url,
+    );
     const avatarURL = explicitAvatar || (avatarID
       ? `https://api.dicebear.com/9.x/adventurer/png?seed=${encodeURIComponent(avatarID)}&size=160`
       : '');
@@ -862,11 +875,13 @@
 
   function renderProject(script, presentation) {
     const facts = [
-      script.entry_file ? `${language === 'en' ? 'Entry' : '入口'} ${script.entry_file}` : '',
-      Number(script.package_file_count) > 0
-        ? `${script.package_file_count} ${language === 'en' ? 'files' : '个文件'}`
+      (script.entryFile || script.entry_file)
+        ? `${language === 'en' ? 'Entry' : '入口'} ${script.entryFile || script.entry_file}`
         : '',
-      formatBytes(script.package_size_bytes),
+      Number(script.packageFileCount ?? script.package_file_count) > 0
+        ? `${script.packageFileCount ?? script.package_file_count} ${language === 'en' ? 'files' : '个文件'}`
+        : '',
+      formatBytes(script.packageSizeBytes ?? script.package_size_bytes),
     ].filter(Boolean);
     renderPoster(presentation, facts);
   }
@@ -891,10 +906,10 @@
   function renderScriptStats(script) {
     const locale = language === 'en' ? 'en-US' : 'zh-CN';
     renderStats([
-      { value: formatCount(script.view_count, locale), label: tr('views') },
-      { value: formatCount(script.like_count, locale), label: tr('likes') },
-      { value: formatCount(script.run_count, locale), label: tr('runs') },
-      { value: formatCount(script.download_count, locale), label: tr('imports') },
+      { value: formatCount(script.viewCount ?? script.view_count, locale), label: tr('views') },
+      { value: formatCount(script.likeCount ?? script.like_count, locale), label: tr('likes') },
+      { value: formatCount(script.runCount ?? script.run_count, locale), label: tr('runs') },
+      { value: formatCount(script.downloadCount ?? script.download_count, locale), label: tr('imports') },
     ]);
   }
 
@@ -907,8 +922,10 @@
     const title = String(script.title || tr('community')).trim() || tr('community');
     const description = socialDescription(script);
     const presentation = typePresentation(script, language);
-    const coverURL = safeImageURL(script.cover_image_url || script.preview_image_url || script.thumbnail_url);
-    const lines = previewLines(script.content, 34, 8000);
+    const coverURL = safeImageURL(
+      script.coverURL || script.cover_image_url || script.preview_image_url || script.thumbnail_url,
+    );
+    const lines = previewLines(script.sourcePreview || script.content, 34, 8000);
 
     setText(el.eyebrow, tr('communityWork'));
     setText(el.title, title);
@@ -946,7 +963,7 @@
     renderScriptStats(script);
 
     updatePageMetadata(title, description, shareImageURL(script, route.id));
-    setText(el.actionDescription, script.ai_usage_hint || tr('actionDescription'));
+    setText(el.actionDescription, script.aiUsageHint || script.ai_usage_hint || tr('actionDescription'));
     if (!coverURL) setLoading(false);
   }
 
@@ -986,7 +1003,7 @@
     if (!node) return null;
     try {
       const script = JSON.parse(node.textContent || '{}');
-      return String(script?.script_id || '') === String(scriptID || '') ? script : null;
+      return String(script?.id || script?.script_id || '') === String(scriptID || '') ? script : null;
     } catch {
       return null;
     }
@@ -1005,7 +1022,7 @@
     }
   }
 
-  async function loadScript(initialScript = null) {
+  async function loadScript(initialScript = null, forceRemote = false) {
     currentView = 'script-loading';
     hideStatus();
     el.coverImage.onload = null;
@@ -1014,18 +1031,24 @@
     const hasInitialScript = Boolean(initialScript);
     if (hasInitialScript) renderScript(initialScript);
     else setLoading(true);
-    retryAction = () => loadScript(initialScript);
+    retryAction = () => loadScript(null, true);
+    if (hasInitialScript && !forceRemote) return;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 20000);
     try {
-      const response = await fetch(`${API_BASE}/v1/scripts/${encodeURIComponent(route.id)}`, {
+      const response = await fetch(
+        `${COMMUNITY_API_BASE}/works/${encodeURIComponent(route.id)}/share`,
+        {
         headers: { Accept: 'application/json' },
         signal: controller.signal,
-      });
+        },
+      );
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const payload = await response.json();
-      if (!payload || !payload.script) throw new Error('Missing script');
-      renderScript(payload.script);
+      if (!payload?.data || String(payload.data.id || '') !== String(route.id || '')) {
+        throw new Error('Missing work share payload');
+      }
+      renderScript(payload.data);
     } catch {
       if (!hasInitialScript) renderScriptError();
     } finally {

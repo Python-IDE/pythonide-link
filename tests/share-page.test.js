@@ -157,6 +157,29 @@ test('prefers AI summary and normalizes presentation data', () => {
   });
 });
 
+test('accepts the canonical Community V2 work-share projection', () => {
+  const work = {
+    id: 'scr_123',
+    summary: 'V2 作品简介',
+    category: 'games',
+    attachmentKind: 'python',
+    runtimeKind: 'pygame',
+    fileName: 'main.py',
+    contentMode: 'project_package',
+    coverURL: 'https://cdn.example.com/v2-cover.png',
+    updatedAt: '2026-08-29T00:00:00Z',
+  };
+  assert.equal(core.socialDescription(work), 'V2 作品简介');
+  assert.equal(core.isProjectScript(work), true);
+  assert.deepEqual(core.filePresentation(work), {
+    badge: 'PY',
+    categoryLabel: '游戏',
+    detail: '.py · pygame',
+    language: 'py',
+  });
+  assert.equal(core.shareImageURL(work, work.id), work.coverURL);
+});
+
 test('accepts only HTTPS cover images', () => {
   assert.equal(core.safeImageURL('https://cdn.example.com/cover.png'), 'https://cdn.example.com/cover.png');
   assert.equal(core.safeImageURL('http://cdn.example.com/cover.png'), '');
@@ -220,7 +243,7 @@ test('mobile share layout keeps one compact content flow with the primary action
   assert.match(html, /id="initial-script-data" type="application\/json">\{\}<\/script>/);
   assert.match(html, /id="initial-community-data" type="application\/json">\{\}<\/script>/);
   assert.match(html, /share-page\.css\?v=20260716-unified-work-card-2/);
-  assert.match(html, /share-page\.js\?v=20260817-community-links-1/);
+  assert.match(html, /share-page\.js\?v=20260829-community-v2-1/);
   assert.doesNotMatch(html, /id="projectTitle"/);
   assert.doesNotMatch(html, /id="projectDescription"/);
   assert.match(css, /min-height:\s*100svh/);
@@ -242,6 +265,24 @@ test('404 fallback and controller cooperate to restore a clean path', () => {
   const controller = fs.readFileSync(path.join(siteRoot, 'assets/share-page.js'), 'utf8');
   assert.match(fallback, /\?path=/);
   assert.match(controller, /history\.replaceState/);
+});
+
+test('share fallback calls only the canonical Community V2 API', () => {
+  const siteRoot = path.resolve(__dirname, '..');
+  const controller = fs.readFileSync(path.join(siteRoot, 'assets/share-page.js'), 'utf8');
+  const generator = fs.readFileSync(path.join(siteRoot, 'scripts/generate-share-pages.mjs'), 'utf8');
+  const workflow = fs.readFileSync(
+    path.join(siteRoot, '.github/workflows/generate-share-pages.yml'),
+    'utf8',
+  );
+  [controller, generator].forEach((source) => {
+    assert.doesNotMatch(source, /fcapp\.run/);
+    assert.doesNotMatch(source, /\/v1\/scripts/);
+    assert.match(source, /community-api\.pythonide\.xin\/v2\/community/);
+  });
+  assert.match(controller, /\/works\/\$\{encodeURIComponent\(route\.id\)\}\/share/);
+  assert.match(workflow, /cron:\s*"17 \*\/6 \* \* \*"/);
+  assert.doesNotMatch(workflow, /\*\/5 \* \* \* \*/);
 });
 
 test('AASA hands Community V2 shares to the app without claiming reserved short links', () => {

@@ -1,8 +1,8 @@
 # Python IDE link edge renderer
 
 This worker adds server-rendered Open Graph metadata and dynamic PNG preview
-cards to the existing `link.pythonide.xin` GitHub Pages site. It does not change
-the community API and only intercepts the AASA endpoint, `/s/*`,
+cards to the existing `link.pythonide.xin` GitHub Pages site. It only reads the
+restricted Community V2 public projections and intercepts the AASA endpoint, `/s/*`,
 `/community/*`, and `/og/*`.
 
 The same module also supports Cloudflare Pages advanced mode. When the Pages
@@ -23,10 +23,11 @@ The AASA route serves the reviewed association document directly with an
 that contract before deployment.
 
 The worker fetches the published `index.html` from the `pythonide-link`
-repository, reads public script details from the existing community API, and
-replaces the `edge:meta` block before returning the page. Social crawlers such
-as WeChat therefore receive the script title and description without executing
-JavaScript.
+repository, reads public work details from
+`GET /v2/community/works/:scriptID/share`, and replaces the `edge:meta` block
+before returning the page. That projection never contains a project package
+URL, OSS key, or complete ZIP. Social crawlers such as WeChat therefore receive
+the work title and description without executing JavaScript.
 
 Run `npm test` before deploying. Deploy with Wrangler after authenticating the
 Cloudflare account that owns `pythonide.xin`.

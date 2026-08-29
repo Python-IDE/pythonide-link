@@ -21,11 +21,13 @@ Pages deploys from the default branch root with the custom domain
 `link.pythonide.xin` and enforced HTTPS.
 
 The companion `../link-edge/` renderer server-renders per-script Open Graph
-metadata and creates a 1200×630 PNG card from the existing public community
-API. The GitHub Actions workflow in `.github/workflows/` runs this renderer on
-every source publish and every five minutes, committing generated `/s/*/` pages
-and `/og/*` cards to GitHub Pages. This is required because WeChat does not
-reliably execute page JavaScript when building a link preview.
+metadata and creates a 1200×630 PNG card from the restricted public Community
+V2 work-share projection. The GitHub Actions workflow in `.github/workflows/`
+runs this renderer on every source publish and every six hours, committing
+generated `/s/*/` pages and `/og/*` cards to GitHub Pages. Dynamic edge
+rendering remains immediate; the generated files are only a fallback for
+crawlers such as WeChat that do not reliably execute page JavaScript. The six-
+hour cadence avoids waking the Community database every five minutes.
 
 To publish changes, copy the contents of this `link-site/` directory to that
 repository root and verify the Pages deployment. The DNS record is:
@@ -42,8 +44,9 @@ recreate a repository named `pythonide-link` under the previous owner because
 that would break GitHub's repository-transfer redirects.
 
 The publish script copies `../link-edge/` into the link repository as `edge/`
-so the workflow and renderer always use the same tested implementation. No DNS
-migration or community API change is required.
+so the workflow and renderer always use the same tested implementation. Both
+the browser fallback and edge renderer use `community-api.pythonide.xin` V2;
+they must never restore a direct `fcapp.run` or `/v1/scripts` dependency.
 
 Before either deployment, run:
 

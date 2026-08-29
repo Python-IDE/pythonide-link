@@ -301,9 +301,27 @@ test('renders valid post and profile social cards without storing public records
 
 test('server-renders metadata and first-paint data before a client receives the page', async () => {
   const staticHTML = '<html><head><!-- edge:meta-start --><meta name="description" content="old"><!-- edge:meta-end --><title>Old</title><script id="initial-script-data" type="application/json">{}</script></head><body>Share page</body></html>';
+  const v2Script = {
+    id: 'scr_123',
+    title: script.title,
+    summary: script.summary,
+    category: 'python',
+    attachmentKind: 'python',
+    runtimeKind: 'python',
+    fileName: 'main.py',
+    contentMode: 'single_file',
+    sourcePreview: script.content,
+    author: { name: '社区作者' },
+    likeCount: 12,
+    runCount: 34,
+    updatedAt: '2026-08-17T01:00:00Z',
+    revision: 2,
+  };
+  const requests = [];
   const fetcher = async (url) => {
-    if (String(url).includes('/v1/scripts/')) {
-      return new Response(JSON.stringify({ script }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    requests.push(String(url));
+    if (String(url).includes('/v2/community/works/scr_123/share')) {
+      return new Response(JSON.stringify({ data: v2Script }), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }
     return new Response(staticHTML, { status: 200, headers: { 'Content-Type': 'text/html' } });
   };
@@ -319,4 +337,6 @@ test('server-renders metadata and first-paint data before a client receives the 
   assert.match(html, /天气卡片 &lt;测试&gt;/);
   assert.match(html, /https:\/\/link\.pythonide\.xin\/og\/script\/scr_123\.png/);
   assert.match(html, /"title":"天气卡片 \\u003c测试>"/);
+  assert.ok(requests.some((url) => url.includes('/v2/community/works/scr_123/share')));
+  assert.ok(requests.every((url) => !url.includes('/v1/scripts')));
 });

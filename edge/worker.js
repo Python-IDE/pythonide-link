@@ -1,4 +1,3 @@
-const API_BASE = 'https://community-api-axuaystczl.cn-hangzhou.fcapp.run';
 const COMMUNITY_API_BASE = 'https://community-api.pythonide.xin/v2/community';
 const SITE_ORIGIN = 'https://link.pythonide.xin';
 const DEFAULT_INDEX_URL = 'https://raw.githubusercontent.com/Python-IDE/pythonide-link/main/index.html';
@@ -139,8 +138,9 @@ function communityRoute(url) {
 function isProjectScript(script) {
   const tags = [...(script?.tags || []), ...(script?.ai_tags || [])]
     .map((value) => String(value || '').trim().toLowerCase());
-  return String(script?.content_mode || '').trim().toLowerCase() === 'project_package'
-    || Boolean(script?.package_id)
+  return String(script?.contentMode || script?.content_mode || '').trim().toLowerCase() === 'project_package'
+    || String(script?.attachmentKind || '').trim().toLowerCase() === 'project'
+    || Boolean(script?.packageID || script?.package_id)
     || tags.includes('project')
     || tags.includes('project_package')
     || tags.includes('community_content_mode:project_package');
@@ -148,12 +148,14 @@ function isProjectScript(script) {
 
 function workPresentation(script) {
   const category = String(script?.category || '').trim().toLowerCase();
-  const fileType = String(script?.file_type || '').trim().replace(/^\./, '').toLowerCase();
+  const fileName = String(script?.fileName || '').trim();
+  const fileType = String(script?.fileType || script?.file_type || fileName.split('.').pop() || '')
+    .trim().replace(/^\./, '').toLowerCase();
   const tags = [...(script?.tags || []), ...(script?.ai_tags || [])]
     .map((value) => String(value || '').trim().toLowerCase());
   const taggedRuntime = tags.find((value) => value.startsWith('community_runtime:'))
     ?.split(':').slice(1).join(':') || '';
-  const runtime = String(script?.runtime || taggedRuntime).trim().toLowerCase();
+  const runtime = String(script?.runtimeKind || script?.runtime || taggedRuntime).trim().toLowerCase();
   const project = isProjectScript(script);
   const format = project ? 'PROJECT' : 'SINGLE FILE';
   const matches = (...values) => values.some((value) => (
@@ -172,14 +174,19 @@ function workPresentation(script) {
 }
 
 function shareRevision(script, scriptId = '') {
-  const source = String(script?.content_hash || script?.updated_at || script?.approved_at || script?.version || scriptId || 'preview');
+  const source = String(
+    script?.revision || script?.updatedAt || script?.content_hash || script?.updated_at
+      || script?.approved_at || script?.version || scriptId || 'preview',
+  );
   return stableHash(source).toString(36);
 }
 
 function socialPayload(script, scriptId, origin = SITE_ORIGIN) {
   const title = String(script?.title || DEFAULT_TITLE).trim().slice(0, 90) || DEFAULT_TITLE;
-  const description = String(script?.ai_summary || script?.summary || DEFAULT_DESCRIPTION).trim().slice(0, 160) || DEFAULT_DESCRIPTION;
-  const cover = safeHTTPSURL(script?.cover_image_url || script?.preview_image_url || script?.thumbnail_url);
+  const description = String(script?.ai_summary || script?.summary || script?.body || DEFAULT_DESCRIPTION).trim().slice(0, 160) || DEFAULT_DESCRIPTION;
+  const cover = safeHTTPSURL(
+    script?.coverURL || script?.cover_image_url || script?.preview_image_url || script?.thumbnail_url,
+  );
   const presentation = workPresentation(script);
   return {
     title,
@@ -188,7 +195,7 @@ function socialPayload(script, scriptId, origin = SITE_ORIGIN) {
     url: `${origin}/s/${encodeURIComponent(scriptId)}`,
     image: cover || `${origin}/og/script/${encodeURIComponent(scriptId)}.png?v=${shareRevision(script, scriptId)}`,
     isGeneratedImage: !cover,
-    author: String(script?.author_name || '').trim().slice(0, 60),
+    author: String(script?.author?.name || script?.authorName || script?.author_name || '').trim().slice(0, 60),
     programmingLanguage: presentation.language,
     schemaType: 'SoftwareSourceCode',
     imageAlt: `${title} · PythonIDE 作品预览`,
@@ -318,14 +325,16 @@ function injectInitialCommunityData(html, type, data) {
 }
 
 async function fetchScript(scriptId, fetcher = fetch) {
-  const response = await fetcher(`${API_BASE}/v1/scripts/${encodeURIComponent(scriptId)}`, {
-    headers: { Accept: 'application/json', 'User-Agent': 'PythonIDE-Link-Edge/1.0' },
+  const response = await fetcher(`${COMMUNITY_API_BASE}/works/${encodeURIComponent(scriptId)}/share`, {
+    headers: { Accept: 'application/json', 'User-Agent': 'PythonIDE-Link-Edge/2.0' },
     cf: { cacheTtl: 120, cacheEverything: true },
   });
-  if (!response.ok) throw new Error(`Community API ${response.status}`);
+  if (!response.ok) throw new Error(`Community V2 API ${response.status}`);
   const payload = await response.json();
-  if (!payload?.script) throw new Error('Missing script payload');
-  return payload.script;
+  if (!payload?.data || String(payload.data.id || '') !== scriptId) {
+    throw new Error('Missing Community work share payload');
+  }
+  return payload.data;
 }
 
 async function fetchCommunityPost(postID, fetcher = fetch) {
@@ -503,8 +512,9 @@ function drawUnifiedArtwork(target, script, scriptId, statsOverride = null) {
   drawText(target, presentation.label.replace('·', '-'), cardX + 80, cardY + 24, 2, '#171717', 38);
   drawText(target, presentation.preview, cardX + 842, cardY + 24, 2, '#747474', 20);
 
-  const seed = stableHash(`${scriptId}:${script?.content || script?.title || ''}`);
-  const lines = String(script?.content || '').replace(/\r\n?/g, '\n').split('\n').filter((line) => line.trim()).slice(0, 8);
+  const sourcePreview = script?.sourcePreview || script?.content || '';
+  const seed = stableHash(`${scriptId}:${sourcePreview || script?.title || ''}`);
+  const lines = String(sourcePreview).replace(/\r\n?/g, '\n').split('\n').filter((line) => line.trim()).slice(0, 8);
   const fallback = ['python ide community', 'share clean useful code', 'open in the app'];
   const source = lines.length ? lines : fallback;
   source.slice(0, presentation.project ? 3 : 7).forEach((line, index) => {
@@ -524,8 +534,10 @@ function drawUnifiedArtwork(target, script, scriptId, statsOverride = null) {
   drawTypeGlyph(target, presentation, cardX + 874, previewY + 76, 82, '#ededeb', '#2b2c2e');
 
   const stats = statsOverride || [
-    [script?.view_count, 'VIEWS'], [script?.like_count, 'LIKES'],
-    [script?.run_count, 'RUNS'], [script?.download_count, 'IMPORTS'],
+    [script?.viewCount ?? script?.view_count, 'VIEWS'],
+    [script?.likeCount ?? script?.like_count, 'LIKES'],
+    [script?.runCount ?? script?.run_count, 'RUNS'],
+    [script?.downloadCount ?? script?.download_count, 'IMPORTS'],
   ];
   stats.forEach(([value, label], index) => {
     const center = cardX + 40 + (index * 266);
@@ -703,7 +715,9 @@ async function handleCommunityPage(request, type, identifier, env, fetcher = fet
 async function handleOGImage(scriptId, fetcher = fetch) {
   try {
     const script = await fetchScript(scriptId, fetcher);
-    const cover = safeHTTPSURL(script.cover_image_url || script.preview_image_url || script.thumbnail_url);
+    const cover = safeHTTPSURL(
+      script.coverURL || script.cover_image_url || script.preview_image_url || script.thumbnail_url,
+    );
     if (cover) return Response.redirect(cover, 302);
     const png = await renderCard(script, scriptId);
     return new Response(png, {

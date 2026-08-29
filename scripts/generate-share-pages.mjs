@@ -13,7 +13,7 @@ try {
 const { injectInitialScriptData, injectMetadata, renderCard, socialPayload } = renderer;
 
 const API_BASE = process.env.COMMUNITY_API_BASE
-  || 'https://community-api-axuaystczl.cn-hangzhou.fcapp.run';
+  || 'https://community-api.pythonide.xin/v2/community';
 const SITE_ORIGIN = 'https://link.pythonide.xin';
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const indexPath = path.join(repositoryRoot, 'index.html');
@@ -24,7 +24,7 @@ async function responseJSON(url) {
   const response = await fetch(url, {
     headers: {
       Accept: 'application/json',
-      'User-Agent': 'PythonIDE-Link-Generator/1.0',
+      'User-Agent': 'PythonIDE-Link-Generator/2.0',
     },
     signal: AbortSignal.timeout(30000),
   });
@@ -32,20 +32,60 @@ async function responseJSON(url) {
   return response.json();
 }
 
+function shareSnapshotFromPost(post) {
+  const attachment = post?.attachment;
+  const runtime = attachment?.runtimeArtifact;
+  const scriptID = String(runtime?.scriptID || '').trim();
+  if (!scriptID) return null;
+  const coverURL = attachment?.mediaReferences
+    ?.map((media) => media?.posterImage?.urlString || media?.originalImage?.urlString)
+    .find((value) => String(value || '').startsWith('https://')) || null;
+  return {
+    id: scriptID,
+    postID: String(post.id || ''),
+    title: String(attachment.title || post.title || ''),
+    summary: String(attachment.summary || post.body || ''),
+    body: String(post.body || ''),
+    category: String(post.category || ''),
+    attachmentKind: String(attachment.kind || ''),
+    runtimeKind: String(runtime.kind || ''),
+    fileName: String(runtime.fileName || ''),
+    contentMode: attachment.style === 'project' ? 'project_package' : 'single_file',
+    miniAppRuntime: runtime.miniAppRuntime || null,
+    sourcePreview: '',
+    sourcePreviewTruncated: false,
+    coverURL,
+    author: post.author || null,
+    attachment,
+    viewCount: Number(post.viewCount || 0),
+    likeCount: Number(post.likeCount || 0),
+    runCount: Number(post.runCount || 0),
+    downloadCount: Number(post.downloadCount || 0),
+    createdAt: post.createdAt || null,
+    updatedAt: post.updatedAt || null,
+    revision: Number(post.revision || 0),
+  };
+}
+
 async function listScripts() {
-  const scripts = [];
+  const scriptsByID = new Map();
   let cursor = '';
   do {
-    const url = new URL('/v1/scripts', API_BASE);
+    const url = new URL(`${API_BASE.replace(/\/$/, '')}/feed`);
+    url.searchParams.set('mode', 'latest');
     url.searchParams.set('limit', '50');
-    url.searchParams.set('sort', 'updated');
     if (cursor) url.searchParams.set('cursor', cursor);
     const payload = await responseJSON(url);
-    if (!Array.isArray(payload.scripts)) throw new Error('Community API returned no scripts array');
-    scripts.push(...payload.scripts);
-    cursor = String(payload.next_cursor || '');
+    if (!Array.isArray(payload?.data?.items)) {
+      throw new Error('Community V2 API returned no feed items array');
+    }
+    payload.data.items.forEach((post) => {
+      const snapshot = shareSnapshotFromPost(post);
+      if (snapshot && !scriptsByID.has(snapshot.id)) scriptsByID.set(snapshot.id, snapshot);
+    });
+    cursor = String(payload.data.nextCursor || '');
   } while (cursor);
-  return scripts;
+  return [...scriptsByID.values()];
 }
 
 function safeScriptID(value) {
@@ -54,7 +94,7 @@ function safeScriptID(value) {
 }
 
 async function generateScriptPage(template, script) {
-  const scriptID = safeScriptID(script.script_id);
+  const scriptID = safeScriptID(script.id || script.script_id);
   if (!scriptID) return false;
   const meta = socialPayload(script, scriptID, SITE_ORIGIN);
 
