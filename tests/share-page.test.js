@@ -6,6 +6,12 @@ const fs = require('node:fs');
 const path = require('node:path');
 const core = require('../assets/share-page.js');
 
+test('Cloudflare Pages advanced mode reuses the canonical edge renderer', () => {
+  const siteRoot = path.resolve(__dirname, '..');
+  const workerAdapter = fs.readFileSync(path.join(siteRoot, '_worker.js'), 'utf8').trim();
+  assert.equal(workerAdapter, "export { default } from './edge/worker.js';");
+});
+
 test('restores only safe same-origin fallback paths', () => {
   assert.equal(core.safeForwardedPath('/s/scr_123?from=wechat'), '/s/scr_123?from=wechat');
   assert.equal(core.safeForwardedPath('//evil.example/s/123'), '');
@@ -281,8 +287,8 @@ test('share fallback calls only the canonical Community V2 API', () => {
     assert.match(source, /community-api\.pythonide\.xin\/v2\/community/);
   });
   assert.match(controller, /\/works\/\$\{encodeURIComponent\(route\.id\)\}\/share/);
-  assert.match(workflow, /cron:\s*"17 \*\/6 \* \* \*"/);
-  assert.doesNotMatch(workflow, /\*\/5 \* \* \* \*/);
+  assert.doesNotMatch(workflow, /\bschedule\s*:/);
+  assert.doesNotMatch(workflow, /\bcron\s*:/);
 });
 
 test('AASA hands Community V2 shares to the app without claiming reserved short links', () => {

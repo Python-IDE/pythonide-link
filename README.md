@@ -1,6 +1,7 @@
 # PythonIDE Link Site
 
-This directory is the static GitHub Pages origin for:
+This directory is the static asset source for the `pythonide-link` Cloudflare
+Pages project:
 
 - `https://link.pythonide.xin/s/{scriptID}` community work shares
 - `https://link.pythonide.xin/community/{postID}` Community V2 post and comment shares
@@ -16,27 +17,35 @@ This directory is the static GitHub Pages origin for:
 ## Repository and deployment
 
 The canonical repository is
-[`Python-IDE/pythonide-link`](https://github.com/Python-IDE/pythonide-link). GitHub
-Pages deploys from the default branch root with the custom domain
-`link.pythonide.xin` and enforced HTTPS.
+[`Python-IDE/pythonide-link`](https://github.com/Python-IDE/pythonide-link).
+Cloudflare Pages serves the custom domain `link.pythonide.xin` with enforced
+HTTPS. The repository is the reviewed source and rollback history; publishing a
+commit alone does not deploy the direct-upload Pages project.
 
 The companion `../link-edge/` renderer server-renders per-script Open Graph
 metadata and creates a 1200×630 PNG card from the restricted public Community
-V2 work-share projection. The GitHub Actions workflow in `.github/workflows/`
-runs this renderer on every source publish and every six hours, committing
-generated `/s/*/` pages and `/og/*` cards to GitHub Pages. Dynamic edge
-rendering remains immediate; the generated files are only a fallback for
-crawlers such as WeChat that do not reliably execute page JavaScript. The six-
-hour cadence avoids waking the Community database every five minutes.
+V2 work-share projection. `_worker.js` enables Cloudflare Pages advanced mode
+and re-exports that canonical renderer from the published `edge/` directory.
+Dynamic rendering is immediate. The GitHub Actions workflow can generate
+reviewable `/s/*/` pages and `/og/*` cards on a source change or a manual run,
+but it has no recurring schedule and therefore does not wake the Community
+database while nobody is using the site.
 
-To publish changes, copy the contents of this `link-site/` directory to that
-repository root and verify the Pages deployment. The DNS record is:
+Publish and deploy in this order:
+
+```bash
+bash scripts/push_link_site.sh "Describe the link-site change"
+bash scripts/deploy_link_pages.sh
+```
+
+The first command updates the public source repository. The second tests and
+deploys that exact repository commit to the `pythonide-link` Cloudflare Pages
+project. The DNS record is:
 
 ```text
 Type: CNAME
 Host: link
-Value: Python-IDE.github.io
-TTL: 10 minutes
+Value: pythonide-link.pages.dev
 ```
 
 Do not change the root `@` or `www` records used by the main website. Do not
@@ -44,9 +53,10 @@ recreate a repository named `pythonide-link` under the previous owner because
 that would break GitHub's repository-transfer redirects.
 
 The publish script copies `../link-edge/` into the link repository as `edge/`
-so the workflow and renderer always use the same tested implementation. Both
-the browser fallback and edge renderer use `community-api.pythonide.xin` V2;
-they must never restore a direct `fcapp.run` or `/v1/scripts` dependency.
+so Pages advanced mode and the generator always use the same tested
+implementation. Both the browser fallback and edge renderer use
+`community-api.pythonide.xin` V2; they must never restore a direct `fcapp.run`
+or `/v1/scripts` dependency.
 
 Before either deployment, run:
 

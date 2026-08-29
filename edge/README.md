@@ -1,11 +1,12 @@
 # Python IDE link edge renderer
 
 This worker adds server-rendered Open Graph metadata and dynamic PNG preview
-cards to the existing `link.pythonide.xin` GitHub Pages site. It only reads the
+cards to the `link.pythonide.xin` Cloudflare Pages site. It only reads the
 restricted Community V2 public projections and intercepts the AASA endpoint, `/s/*`,
 `/community/*`, and `/og/*`.
 
-The same module also supports Cloudflare Pages advanced mode. When the Pages
+Cloudflare Pages advanced mode is the production owner. `link-site/_worker.js`
+re-exports this module from the published `edge/` directory. When the Pages
 `ASSETS` binding is present, it reads the share template from the local Pages
 deployment and forwards all non-edge routes (including the public OAuth
 metadata and callback pages) to the static asset service. This permits the
@@ -29,5 +30,6 @@ before returning the page. That projection never contains a project package
 URL, OSS key, or complete ZIP. Social crawlers such as WeChat therefore receive
 the work title and description without executing JavaScript.
 
-Run `npm test` before deploying. Deploy with Wrangler after authenticating the
-Cloudflare account that owns `pythonide.xin`.
+Run `npm test` before deploying. Use `scripts/deploy_link_pages.sh` after
+authenticating the Cloudflare account that owns the `pythonide-link` Pages
+project. Do not deploy this module as a separate routed Worker.
